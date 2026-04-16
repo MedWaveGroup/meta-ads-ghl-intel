@@ -452,6 +452,37 @@ function getVideoMetric(actions, type) {
     return a ? parseInt(a.value)||0 : 0;
 }
 
+// ── Meta Ad Control (Pause/Activate) ──────────────
+async function toggleMetaStatus(entityId, currentStatus, btnEl) {
+    if (!META_TOKEN) { alert('Meta Ads not connected.'); return; }
+    const newStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    const action = newStatus === 'PAUSED' ? 'pause' : 'reactivate';
+    if (!confirm(`Are you sure you want to ${action} this ${entityId.length > 15 ? 'ad' : 'item'}?\n\nID: ${entityId}`)) return;
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div>';
+    try {
+        const res = await fetch(`${META_BASE}/${entityId}?access_token=${META_TOKEN}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        btnEl.dataset.status = newStatus;
+        if (newStatus === 'PAUSED') {
+            btnEl.innerHTML = '\u25B6 Activate';
+            btnEl.className = btnEl.className.replace(/bg-red-[^\s]+/g, '').replace(/hover:bg-red-[^\s]+/g, '') + ' bg-green-600/20 hover:bg-green-600/30 text-green-400 border-green-500/30';
+        } else {
+            btnEl.innerHTML = '\u23F8 Pause';
+            btnEl.className = btnEl.className.replace(/bg-green-[^\s]+/g, '').replace(/hover:bg-green-[^\s]+/g, '') + ' bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30';
+        }
+    } catch (e) {
+        alert('Failed: ' + e.message);
+        btnEl.innerHTML = currentStatus === 'ACTIVE' ? '\u23F8 Pause' : '\u25B6 Activate';
+    }
+    btnEl.disabled = false;
+}
+
 function showLoading(show, text) {
     document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
     if (text) document.getElementById('loadingText').textContent = text;
@@ -945,7 +976,7 @@ function renderIntelTab() {
         const adSetPerf = {};
         metaAdSetInsights.forEach(a => {
             const key = `${a.campaign_name} >> ${a.adset_name}`;
-            if (!adSetPerf[key]) adSetPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0, ads: [] };
+            if (!adSetPerf[key]) adSetPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, adsetId: a.adset_id, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0, ads: [] };
             adSetPerf[key].spend += parseFloat(a.spend||0);
             adSetPerf[key].impressions += parseInt(a.impressions||0);
             adSetPerf[key].clicks += parseInt(a.clicks||0);
@@ -956,8 +987,8 @@ function renderIntelTab() {
         // Build ad-level performance
         const adPerf = {};
         metaAdCreatives.forEach(a => {
-            const key = a.ad_name || a.ad_id;
-            if (!adPerf[key]) adPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, ad: a.ad_name, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0 };
+            const key = a.ad_id || a.ad_name;
+            if (!adPerf[key]) adPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, ad: a.ad_name, adId: a.ad_id, adsetId: a.adset_id, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0 };
             adPerf[key].spend += parseFloat(a.spend||0);
             adPerf[key].impressions += parseInt(a.impressions||0);
             adPerf[key].clicks += parseInt(a.clicks||0);
@@ -994,11 +1025,14 @@ function renderIntelTab() {
                                     <p class="text-gray-500 text-[10px]">${item.campaign}</p>
                                 </div>
                             </div>
-                            <div class="flex gap-4 text-right">
-                                <div><p class="text-[10px] text-gray-500">Spend</p><p class="text-sm font-mono text-white">${money(item.spend)}</p></div>
-                                <div><p class="text-[10px] text-gray-500">Leads</p><p class="text-sm font-mono text-white">${num(item.leads)}</p></div>
-                                <div><p class="text-[10px] text-gray-500">CPL</p><p class="text-sm font-mono text-yellow-400">${cpl(item.spend, item.leads)}</p></div>
-                                <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-sm font-mono font-bold ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">${item.booked}</p></div>
+                            <div class="flex items-center gap-4">
+                                <div class="flex gap-4 text-right">
+                                    <div><p class="text-[10px] text-gray-500">Spend</p><p class="text-sm font-mono text-white">${money(item.spend)}</p></div>
+                                    <div><p class="text-[10px] text-gray-500">Leads</p><p class="text-sm font-mono text-white">${num(item.leads)}</p></div>
+                                    <div><p class="text-[10px] text-gray-500">CPL</p><p class="text-sm font-mono text-yellow-400">${cpl(item.spend, item.leads)}</p></div>
+                                    <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-sm font-mono font-bold ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">${item.booked}</p></div>
+                                </div>
+                                ${item.adsetId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${item.adsetId}', this.dataset.status, this)" class="px-3 py-1.5 text-[11px] font-medium rounded-lg border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause Ad Set</button>` : ''}
                             </div>
                         </div>
                         ${item.ads.length > 0 ? `
@@ -1006,12 +1040,13 @@ function renderIntelTab() {
                             <p class="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Ads in this ad set:</p>
                             <div class="space-y-1">
                                 ${item.ads.sort((a,b) => a.booked - b.booked || b.spend - a.spend).map(ad => `
-                                    <div class="flex items-center justify-between text-xs py-1 px-2 rounded ${ad.booked === 0 ? 'bg-red-500/5' : 'bg-dark-700/50'}">
-                                        <span class="text-gray-300 max-w-[250px] truncate" title="${ad.ad}">${ad.ad}</span>
-                                        <div class="flex gap-3 text-right">
+                                    <div class="flex items-center justify-between text-xs py-1.5 px-2 rounded ${ad.booked === 0 ? 'bg-red-500/5' : 'bg-dark-700/50'}">
+                                        <span class="text-gray-300 max-w-[200px] truncate" title="${ad.ad}">${ad.ad}</span>
+                                        <div class="flex items-center gap-3">
                                             <span class="text-gray-500 font-mono">${money(ad.spend)}</span>
                                             <span class="text-gray-400 font-mono">${num(ad.leads)} leads</span>
                                             <span class="font-mono font-bold ${ad.booked === 0 ? 'text-red-400' : 'text-green-400'}">${ad.booked} booked</span>
+                                            ${ad.adId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${ad.adId}', this.dataset.status, this)" class="px-2 py-1 text-[10px] font-medium rounded border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause</button>` : ''}
                                         </div>
                                     </div>
                                 `).join('')}
