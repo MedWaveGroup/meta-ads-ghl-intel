@@ -27,6 +27,14 @@
         .sort-btn:hover { color: #60a5fa; }
         .progress-bar { height: 6px; border-radius: 3px; overflow: hidden; }
         .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .day-active { background: #3b82f6 !important; color: white !important; }
+        .dropoff-bar { height: 22px; border-radius: 4px; transition: width 0.4s ease; min-width: 2px; }
+        .expand-row { cursor: pointer; }
+        .expand-row:hover { background: rgba(96,165,250,0.06) !important; }
+        .expand-arrow { transition: transform 0.2s; }
+        .conv-green { color: #22c55e; }
+        .conv-yellow { color: #eab308; }
+        .conv-red { color: #ef4444; }
     </style>
     <script>
         tailwind.config = {
@@ -85,8 +93,18 @@
                     <button onclick="switchTab('overview')" data-tab="overview" class="tab-btn tab-active px-3 py-1.5 rounded-md transition">Overview</button>
                     <button onclick="switchTab('attribution')" data-tab="attribution" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Ad Attribution</button>
                     <button onclick="switchTab('meta')" data-tab="meta" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Meta Ads</button>
+                    <button onclick="switchTab('video')" data-tab="video" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Video Perf.</button>
                 </div>
-                <button onclick="refreshAll()" id="refreshBtn" class="bg-dark-600 hover:bg-dark-700 p-2 rounded-lg transition" title="Refresh">
+                <!-- Date Filters -->
+                <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
+                    <button onclick="setDayFilter(7)" data-days="7" class="day-btn px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white transition">7D</button>
+                    <button onclick="setDayFilter(14)" data-days="14" class="day-btn px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white transition">14D</button>
+                    <button onclick="setDayFilter(30)" data-days="30" class="day-btn day-active px-2.5 py-1.5 rounded-md transition">30D</button>
+                    <button onclick="setDayFilter(60)" data-days="60" class="day-btn px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white transition">60D</button>
+                    <button onclick="setDayFilter(180)" data-days="180" class="day-btn px-2.5 py-1.5 rounded-md text-gray-400 hover:text-white transition">180D</button>
+                </div>
+                <span id="dateRangeLabel" class="text-[10px] text-gray-500"></span>
+                <button onclick="refreshAll()" class="bg-dark-600 hover:bg-dark-700 p-2 rounded-lg transition" title="Refresh">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
                 <button onclick="disconnect()" class="text-xs text-gray-500 hover:text-red-400 transition">Disconnect</button>
@@ -103,26 +121,21 @@
 
         <!-- TAB: Overview -->
         <div id="tab-overview" class="space-y-6 fade-in">
-            <!-- Funnel KPIs -->
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="funnelKpis"></div>
-
-            <!-- Andries & Elmien Side by Side -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="glass rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-white mb-1">Andries Maritz — Pipeline</h3>
+                    <h3 class="text-sm font-semibold text-white mb-1">Andries Maritz &mdash; Pipeline</h3>
                     <p class="text-xs text-gray-500 mb-4">Booked appointments from Facebook ads</p>
                     <canvas id="andriesFunnelChart"></canvas>
                     <div id="andriesStats" class="mt-4 space-y-2"></div>
                 </div>
                 <div class="glass rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-white mb-1">Elmien Geldenhuys — Pipeline</h3>
+                    <h3 class="text-sm font-semibold text-white mb-1">Elmien Geldenhuys &mdash; Pipeline</h3>
                     <p class="text-xs text-gray-500 mb-4">Booked appointments from Facebook ads</p>
                     <canvas id="elmienFunnelChart"></canvas>
                     <div id="elmienStats" class="mt-4 space-y-2"></div>
                 </div>
             </div>
-
-            <!-- Top Performing Ads for Bookings -->
             <div class="glass rounded-xl p-5">
                 <h3 class="text-sm font-semibold text-white mb-3">Top Ads Creating Booked Appointments</h3>
                 <canvas id="topAdsChart" height="70"></canvas>
@@ -133,7 +146,7 @@
         <div id="tab-attribution" class="hidden space-y-6 fade-in">
             <div class="glass rounded-xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-white">Campaign → Booked Appointment Attribution</h3>
+                    <h3 class="text-sm font-semibold text-white">Campaign &rarr; Booked Appointment Attribution</h3>
                     <select id="attrPersonFilter" onchange="renderAttributionTable()" class="bg-dark-800 border border-gray-700 rounded-lg text-xs px-2 py-1">
                         <option value="all">All</option>
                         <option value="andries">Andries</option>
@@ -147,7 +160,9 @@
                                 <th class="text-left px-5 py-3 font-medium">Campaign</th>
                                 <th class="text-left px-3 py-3 font-medium">Ad Set</th>
                                 <th class="text-left px-3 py-3 font-medium">Ad Content</th>
+                                <th class="text-center px-3 py-3 font-medium">Leads</th>
                                 <th class="text-center px-3 py-3 font-medium">Booked</th>
+                                <th class="text-center px-3 py-3 font-medium">Conv %</th>
                                 <th class="text-center px-3 py-3 font-medium">Completed</th>
                                 <th class="text-center px-3 py-3 font-medium">No Show</th>
                                 <th class="text-center px-3 py-3 font-medium">Cancelled</th>
@@ -158,8 +173,6 @@
                     </table>
                 </div>
             </div>
-
-            <!-- Contact-level detail -->
             <div class="glass rounded-xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-gray-800/50">
                     <h3 class="text-sm font-semibold text-white">Contact-Level Attribution Detail</h3>
@@ -185,27 +198,20 @@
 
         <!-- TAB: Meta Ads -->
         <div id="tab-meta" class="hidden space-y-6 fade-in">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3" id="metaKpiGrid"></div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3" id="metaKpiGrid"></div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="glass rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-400 mb-3">Spend & Conversions Trend</h3>
+                    <h3 class="text-sm font-semibold text-gray-400 mb-3">Spend &amp; Conversions Trend</h3>
                     <canvas id="spendConvChart"></canvas>
                 </div>
                 <div class="glass rounded-xl p-5">
-                    <h3 class="text-sm font-semibold text-gray-400 mb-3">CTR & CPC Trend</h3>
-                    <canvas id="ctrCpcChart"></canvas>
+                    <h3 class="text-sm font-semibold text-gray-400 mb-3">CTR Trend</h3>
+                    <canvas id="ctrChart"></canvas>
                 </div>
             </div>
             <div class="glass rounded-xl overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                <div class="px-5 py-4 border-b border-gray-800/50">
                     <h3 class="text-sm font-semibold text-white">Campaigns</h3>
-                    <div class="flex items-center gap-2">
-                        <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
-                            <button onclick="setMetaRange('last_7d')" data-range="last_7d" class="range-btn px-3 py-1.5 rounded-md bg-blue-600 text-white">7D</button>
-                            <button onclick="setMetaRange('last_30d')" data-range="last_30d" class="range-btn px-3 py-1.5 rounded-md">30D</button>
-                            <button onclick="setMetaRange('this_month')" data-range="this_month" class="range-btn px-3 py-1.5 rounded-md">MTD</button>
-                        </div>
-                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
@@ -217,14 +223,46 @@
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('impressions')">Impr.</th>
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('clicks')">Clicks</th>
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('ctr')">CTR</th>
-                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('cpc')">CPC</th>
-                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('cpm')">CPM</th>
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('conversions')">Conv.</th>
                                 <th class="text-center px-3 py-3 font-medium text-green-400">GHL Booked</th>
+                                <th class="text-center px-3 py-3 font-medium text-emerald-400">Conv %</th>
                             </tr>
                         </thead>
                         <tbody id="metaCampaignBody"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Video Performance -->
+        <div id="tab-video" class="hidden space-y-6 fade-in">
+            <div id="videoNoMeta" class="hidden glass rounded-xl p-8 text-center">
+                <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <p class="text-gray-400 mb-1">Connect Meta Ads to view video performance data</p>
+                <p class="text-xs text-gray-600">Enter your Meta access token and ad account ID to see hook rates and watch time drop-off by ad.</p>
+            </div>
+            <div id="videoContent" class="hidden space-y-4">
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-white mb-3">Video Watch Time Drop-off by Campaign</h3>
+                    <p class="text-xs text-gray-500 mb-4">Click a campaign to expand and see individual ad performance. Shows where viewers drop off.</p>
+                    <div id="videoTableContainer" class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-gray-500 border-b border-gray-800/50">
+                                    <th class="text-left px-5 py-3 font-medium w-8"></th>
+                                    <th class="text-left px-3 py-3 font-medium">Campaign / Ad</th>
+                                    <th class="text-right px-3 py-3 font-medium">Impr.</th>
+                                    <th class="text-center px-3 py-3 font-medium">Hook Rate (3s)</th>
+                                    <th class="text-center px-3 py-3 font-medium">25%</th>
+                                    <th class="text-center px-3 py-3 font-medium">50%</th>
+                                    <th class="text-center px-3 py-3 font-medium">75%</th>
+                                    <th class="text-center px-3 py-3 font-medium">100%</th>
+                                    <th class="text-left px-3 py-3 font-medium w-[200px]">Drop-off</th>
+                                </tr>
+                            </thead>
+                            <tbody id="videoTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -242,19 +280,59 @@ const storage = (() => {
 let META_TOKEN = '', META_ACCOUNT = '', GHL_TOKEN = '';
 let metaDateRange = { since: '', until: '' };
 let metaSortState = { key: 'spend', dir: 'desc' };
+let dayFilter = 30; // default
 
-// GHL data
-let ghlContacts = []; // all fetched contacts with attribution
-let ghlAndries = [];
-let ghlElmien = [];
+// GHL data (raw, unfiltered)
+let ghlContactsRaw = [];
+let ghlAndries = { total: 0, fb: 0, contacts: [] };
+let ghlElmien = { total: 0, fb: 0, contacts: [] };
 const ANDRIES_ID = 'Yj7mjEZBYBC5CqF1dNL2';
 const ELMIEN_ID = 'GYsOP4uVvbzoI919XzmT';
 const GHL_BASE = 'https://rest.gohighlevel.com/v1';
 const META_BASE = 'https://graph.facebook.com/v21.0';
 
+// All GHL leads (for conv rate denominator)
+let ghlAllLeads = [];
+
 // Meta data
 let metaCampaigns = [], metaInsights = [], metaDailyInsights = [];
+let metaVideoInsights = []; // ad-level video data
 let charts = {};
+
+// ── Date filter helpers ───────────────────────────
+function cutoffDate() {
+    const d = new Date(); d.setDate(d.getDate() - dayFilter); d.setHours(0,0,0,0); return d;
+}
+function isInDateRange(dateStr) {
+    if (!dateStr) return false;
+    return new Date(dateStr) >= cutoffDate();
+}
+function filteredContacts() {
+    return ghlContactsRaw.filter(c => isInDateRange(c.dateAdded));
+}
+function updateDateLabel() {
+    const start = cutoffDate();
+    const end = new Date();
+    const fmt = d => d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+    document.getElementById('dateRangeLabel').textContent = `${fmt(start)} - ${fmt(end)}`;
+}
+
+function setDayFilter(days) {
+    dayFilter = days;
+    document.querySelectorAll('.day-btn').forEach(b => {
+        b.classList.toggle('day-active', parseInt(b.dataset.days) === days);
+        b.classList.toggle('text-gray-400', parseInt(b.dataset.days) !== days);
+    });
+    updateDateLabel();
+    // Update Meta date range
+    const today = new Date();
+    const start = new Date(today); start.setDate(start.getDate() - (days - 1));
+    metaDateRange = { since: fmt(start), until: fmt(today) };
+    // Re-render everything
+    renderAll();
+    // Re-fetch Meta if connected
+    if (META_TOKEN) fetchAndRenderMeta();
+}
 
 // ── Auth ──────────────────────────────────────────
 async function handleConnect() {
@@ -263,22 +341,14 @@ async function handleConnect() {
     const ghlKey = document.getElementById('ghlKey').value.trim();
     const errEl = document.getElementById('authError');
     const btn = document.getElementById('connectBtn');
-
     if (!ghlKey) { errEl.textContent = 'GHL API key is required.'; errEl.classList.remove('hidden'); return; }
-
     btn.innerHTML = '<div class="spinner"></div> Connecting...'; btn.disabled = true;
     errEl.classList.add('hidden');
-
     try {
-        // Test GHL
         const ghlRes = await fetch(`${GHL_BASE}/users/`, { headers: { Authorization: `Bearer ${ghlKey}` } });
         const ghlData = await ghlRes.json();
         if (!ghlData.users) throw new Error('Invalid GHL API key');
-
-        GHL_TOKEN = ghlKey;
-        storage.setItem('ghl_key', ghlKey);
-
-        // Test Meta (optional)
+        GHL_TOKEN = ghlKey; storage.setItem('ghl_key', ghlKey);
         if (metaToken && metaAcct) {
             const acctId = metaAcct.startsWith('act_') ? metaAcct : `act_${metaAcct}`;
             const metaRes = await fetch(`${META_BASE}/${acctId}?fields=name,account_id,currency&access_token=${metaToken}`);
@@ -290,25 +360,20 @@ async function handleConnect() {
         } else {
             document.getElementById('accountName').textContent = 'GHL Only Mode';
         }
-
         document.getElementById('authModal').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
+        setDayFilter(30);
         refreshAll();
     } catch (e) {
         errEl.textContent = e.message; errEl.classList.remove('hidden');
-    } finally {
-        btn.innerHTML = 'Connect'; btn.disabled = false;
-    }
+    } finally { btn.innerHTML = 'Connect'; btn.disabled = false; }
 }
-
 function disconnect() {
     ['meta_token','meta_account','ghl_key'].forEach(k => storage.removeItem(k));
     META_TOKEN = ''; META_ACCOUNT = ''; GHL_TOKEN = '';
     document.getElementById('dashboard').classList.add('hidden');
     document.getElementById('authModal').classList.remove('hidden');
 }
-
-// Auto-restore
 (function() {
     const mt = storage.getItem('meta_token'), ma = storage.getItem('meta_account'), gk = storage.getItem('ghl_key');
     if (gk) {
@@ -321,7 +386,7 @@ function disconnect() {
 
 // ── Tabs ──────────────────────────────────────────
 function switchTab(tab) {
-    ['overview','attribution','meta'].forEach(t => {
+    ['overview','attribution','meta','video'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
     });
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -336,6 +401,8 @@ function num(v) { return parseFloat(v||0).toLocaleString('en-US'); }
 function pct(v) { return parseFloat(v||0).toFixed(2) + '%'; }
 function dec(v,d=2) { return parseFloat(v||0).toFixed(d); }
 function fmt(d) { return d.toISOString().split('T')[0]; }
+function convColor(rate) { return rate >= 20 ? 'conv-green' : rate >= 10 ? 'conv-yellow' : 'conv-red'; }
+function hookColor(rate) { return rate >= 30 ? 'text-green-400' : rate >= 20 ? 'text-yellow-400' : 'text-red-400'; }
 
 function getConversions(actions) {
     if (!actions) return 0;
@@ -345,12 +412,17 @@ function getConversions(actions) {
     }
     return 0;
 }
+function getVideoMetric(actions, type) {
+    if (!actions) return 0;
+    const a = actions.find(x => x.action_type === type);
+    return a ? parseInt(a.value)||0 : 0;
+}
 
 function showLoading(show, text) {
     document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
     if (text) document.getElementById('loadingText').textContent = text;
 }
-function setProgress(pct) { document.getElementById('progressFill').style.width = pct + '%'; }
+function setProgress(p) { document.getElementById('progressFill').style.width = p + '%'; }
 function showError(msg) { const el = document.getElementById('errorBanner'); el.textContent = msg; el.classList.remove('hidden'); }
 function hideError() { document.getElementById('errorBanner').classList.add('hidden'); }
 
@@ -359,41 +431,37 @@ async function ghlFetch(path) {
     const res = await fetch(`${GHL_BASE}${path}`, { headers: { Authorization: `Bearer ${GHL_TOKEN}` } });
     return res.json();
 }
-
 async function fetchGHLContacts(query, limit = 100) {
     const data = await ghlFetch(`/contacts/?limit=${limit}&locationId=QdLXaFEqrdF0JbVbpKLw&query=${encodeURIComponent(query)}`);
     return data.contacts || [];
 }
-
 async function fetchContactDetail(id) {
     const data = await ghlFetch(`/contacts/${id}`);
     return data.contact || {};
 }
 
 async function fetchGHLAttributionData() {
-    showLoading(true, 'Fetching GHL contacts (Andries)...');
-    setProgress(10);
-
-    // Fetch Andries booked contacts
+    showLoading(true, 'Fetching GHL contacts (Andries)...'); setProgress(10);
     const andriesContacts = await fetchGHLContacts('andries booked', 100);
     const andriesFb = andriesContacts.filter(c => c.source === 'Facebook');
+    setProgress(20);
 
-    setProgress(25);
     showLoading(true, 'Fetching GHL contacts (Elmien)...');
-
-    // Fetch Elmien contacts
     const elmienContacts = await fetchGHLContacts('elmien', 100);
     const elmienFb = elmienContacts.filter(c => c.source === 'Facebook' && c.tags?.some(t => t.includes('elmien-appt')));
+    setProgress(30);
 
+    // Fetch ALL leads for conv rate denominator
+    showLoading(true, 'Fetching all leads...');
+    const allLeads = await fetchGHLContacts('brand email series', 100);
+    ghlAllLeads = allLeads;
     setProgress(40);
+
     showLoading(true, `Fetching attribution for ${andriesFb.length + elmienFb.length} contacts...`);
-
-    // Fetch individual contact details for attribution
     const allFbIds = [
-        ...andriesFb.map(c => ({ id: c.id, person: 'andries', tags: c.tags })),
-        ...elmienFb.map(c => ({ id: c.id, person: 'elmien', tags: c.tags }))
+        ...andriesFb.map(c => ({ id: c.id, person: 'andries', tags: c.tags, dateAdded: c.dateAdded })),
+        ...elmienFb.map(c => ({ id: c.id, person: 'elmien', tags: c.tags, dateAdded: c.dateAdded }))
     ];
-
     const detailed = [];
     for (let i = 0; i < allFbIds.length; i++) {
         try {
@@ -401,34 +469,26 @@ async function fetchGHLAttributionData() {
             detail._person = allFbIds[i].person;
             detailed.push(detail);
             setProgress(40 + (i / allFbIds.length) * 50);
-        } catch (e) { /* skip rate-limited */ }
-        if (i % 5 === 4) await new Promise(r => setTimeout(r, 200)); // rate limit
+        } catch (e) { }
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 200));
     }
 
-    // Also count all contacts (not just Facebook)
-    const andriesAll = andriesContacts;
-    const elmienAll = elmienContacts.filter(c => c.tags?.some(t => t.includes('elmien')));
-
-    ghlContacts = detailed;
-    ghlAndries = { total: andriesAll.length, fb: andriesFb.length, contacts: andriesAll };
-    ghlElmien = { total: elmienAll.length, fb: elmienFb.length, contacts: elmienAll };
-
+    ghlContactsRaw = detailed;
+    ghlAndries = { total: andriesContacts.length, fb: andriesFb.length, contacts: andriesContacts };
+    ghlElmien = { total: elmienContacts.filter(c => c.tags?.some(t => t.includes('elmien'))).length, fb: elmienFb.length, contacts: elmienContacts };
     setProgress(95);
 }
 
 // ── Meta API ──────────────────────────────────────
 async function metaFetch(endpoint, params = {}) {
     params.access_token = META_TOKEN;
-    const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${META_BASE}${endpoint}?${qs}`);
+    const res = await fetch(`${META_BASE}${endpoint}?${new URLSearchParams(params).toString()}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
     return data;
 }
-
 async function metaFetchAll(endpoint, params = {}) {
-    let all = [];
-    params.access_token = META_TOKEN; params.limit = params.limit || '500';
+    let all = []; params.access_token = META_TOKEN; params.limit = params.limit || '500';
     let url = `${META_BASE}${endpoint}?${new URLSearchParams(params).toString()}`;
     while (url) {
         const res = await fetch(url); const data = await res.json();
@@ -438,25 +498,26 @@ async function metaFetchAll(endpoint, params = {}) {
     return all;
 }
 
-async function fetchMetaData() {
+async function fetchAndRenderMeta() {
     if (!META_TOKEN) return;
-    const today = new Date();
-    const s7 = new Date(today); s7.setDate(s7.getDate() - 6);
-    metaDateRange = { since: fmt(s7), until: fmt(today) };
     const { since, until } = metaDateRange;
-    const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type,action_values';
-
-    const [campaigns, acctInsights, daily, campInsights] = await Promise.all([
-        metaFetchAll(`/${META_ACCOUNT}/campaigns`, { fields: 'name,status,objective', limit: '500' }),
-        metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
-        metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,cpc,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
-        metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' })
-    ]);
-
-    metaCampaigns = campaigns;
-    metaInsights = campInsights;
-    metaDailyInsights = daily;
-    return acctInsights.data?.[0] || {};
+    if (!since || !until) return;
+    showLoading(true, 'Fetching Meta Ads data...');
+    try {
+        const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,actions,cost_per_action_type,action_values';
+        const videoFields = 'campaign_id,campaign_name,ad_id,ad_name,impressions,video_thruplay_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,actions';
+        const [campaigns, acctInsights, daily, campInsights, adVideoData] = await Promise.all([
+            metaFetchAll(`/${META_ACCOUNT}/campaigns`, { fields: 'name,status,objective', limit: '500' }),
+            metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' }),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: videoFields, time_range: JSON.stringify({since,until}), level: 'ad', limit: '500' }).catch(() => [])
+        ]);
+        metaCampaigns = campaigns; metaInsights = campInsights; metaDailyInsights = daily; metaVideoInsights = adVideoData;
+        const acct = acctInsights.data?.[0] || {};
+        renderMetaKPIs(acct); renderMetaCharts(); renderMetaCampaignTable(); renderVideoTab();
+    } catch (e) { showError(e.message); }
+    showLoading(false);
 }
 
 // ── Refresh All ───────────────────────────────────
@@ -464,44 +525,41 @@ async function refreshAll() {
     hideError();
     try {
         await fetchGHLAttributionData();
-        let acctInsight = null;
-        if (META_TOKEN) {
-            showLoading(true, 'Fetching Meta Ads data...');
-            acctInsight = await fetchMetaData();
-        }
-        setProgress(100);
-        showLoading(false);
-        renderOverview();
-        renderAttributionTable();
-        renderContactTable();
-        if (acctInsight) {
-            renderMetaKPIs(acctInsight);
-            renderMetaCharts();
-            renderMetaCampaignTable();
-        }
-    } catch (e) {
-        showLoading(false);
-        showError(e.message);
+        setProgress(100); showLoading(false);
+        renderAll();
+        if (META_TOKEN) await fetchAndRenderMeta();
+    } catch (e) { showLoading(false); showError(e.message); }
+}
+
+function renderAll() {
+    updateDateLabel();
+    renderOverview();
+    renderAttributionTable();
+    renderContactTable();
+    renderVideoTab();
+    if (META_TOKEN && metaInsights.length) {
+        renderMetaCampaignTable();
     }
 }
 
 // ── Render: Overview ──────────────────────────────
 function renderOverview() {
-    // Funnel KPIs
-    const totalFbContacts = ghlContacts.length;
-    const withAttr = ghlContacts.filter(c => c.attributionSource?.campaign).length;
-    const andriesBooked = ghlContacts.filter(c => c._person === 'andries').length;
-    const elmienBooked = ghlContacts.filter(c => c._person === 'elmien').length;
-    const andriesCompleted = ghlContacts.filter(c => c._person === 'andries' && c.tags?.includes('andries-call-completed')).length;
-    const elmienCompleted = ghlContacts.filter(c => c._person === 'elmien' && c.tags?.includes('elmien-appt-completed')).length;
+    const contacts = filteredContacts();
+    const andriesBooked = contacts.filter(c => c._person === 'andries').length;
+    const elmienBooked = contacts.filter(c => c._person === 'elmien').length;
+    const andriesCompleted = contacts.filter(c => c._person === 'andries' && c.tags?.includes('andries-call-completed')).length;
+    const elmienCompleted = contacts.filter(c => c._person === 'elmien' && c.tags?.includes('elmien-appt-completed')).length;
+    const totalLeads = ghlAllLeads.filter(c => isInDateRange(c.dateAdded) && c.source === 'Facebook').length;
+    const totalBooked = andriesBooked + elmienBooked;
+    const overallConv = totalLeads > 0 ? ((totalBooked / totalLeads) * 100).toFixed(1) : '0.0';
 
     document.getElementById('funnelKpis').innerHTML = [
-        { label: 'FB Leads (Andries)', value: ghlAndries.fb, color: 'blue' },
-        { label: 'FB Leads (Elmien)', value: ghlElmien.fb, color: 'purple' },
-        { label: 'Andries Booked', value: andriesBooked, color: 'green' },
-        { label: 'Elmien Booked', value: elmienBooked, color: 'emerald' },
-        { label: 'Andries Completed', value: andriesCompleted, color: 'teal' },
-        { label: 'Elmien Completed', value: elmienCompleted, color: 'cyan' },
+        { label: 'FB Leads Total', value: totalLeads, color: 'slate' },
+        { label: 'Andries Booked', value: andriesBooked, color: 'blue' },
+        { label: 'Elmien Booked', value: elmienBooked, color: 'purple' },
+        { label: 'Andries Completed', value: andriesCompleted, color: 'green' },
+        { label: 'Elmien Completed', value: elmienCompleted, color: 'emerald' },
+        { label: 'Overall Conv %', value: overallConv + '%', color: 'teal' },
     ].map(k => `
         <div class="kpi-card rounded-xl p-4 bg-gradient-to-br from-${k.color}-600/20 to-${k.color}-600/5 border border-${k.color}-500/20">
             <p class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">${k.label}</p>
@@ -509,19 +567,17 @@ function renderOverview() {
         </div>
     `).join('');
 
-    // Andries funnel
     renderPersonPipeline('andries');
     renderPersonPipeline('elmien');
     renderTopAdsChart();
 }
 
 function renderPersonPipeline(person) {
-    const contacts = ghlContacts.filter(c => c._person === person && c.attributionSource?.campaign);
+    const contacts = filteredContacts().filter(c => c._person === person && c.attributionSource?.campaign);
     const campaignMap = {};
-
     contacts.forEach(c => {
         const camp = c.attributionSource.campaign;
-        if (!campaignMap[camp]) campaignMap[camp] = { booked: 0, completed: 0, noShow: 0, cancelled: 0 };
+        if (!campaignMap[camp]) campaignMap[camp] = { booked: 0, completed: 0, noShow: 0 };
         campaignMap[camp].booked++;
         if (person === 'andries') {
             if (c.tags?.includes('andries-call-completed')) campaignMap[camp].completed++;
@@ -529,94 +585,69 @@ function renderPersonPipeline(person) {
         } else {
             if (c.tags?.includes('elmien-appt-completed')) campaignMap[camp].completed++;
             if (c.tags?.includes('elmien-no show')) campaignMap[camp].noShow++;
-            if (c.tags?.includes('elmien-cancelled-appt')) campaignMap[camp].cancelled++;
         }
     });
-
     const sorted = Object.entries(campaignMap).sort((a,b) => b[1].booked - a[1].booked).slice(0, 8);
     const labels = sorted.map(([k]) => k.length > 35 ? k.slice(0,32)+'...' : k);
-    const bookedData = sorted.map(([,v]) => v.booked);
-    const completedData = sorted.map(([,v]) => v.completed);
-
     const chartId = person === 'andries' ? 'andriesFunnelChart' : 'elmienFunnelChart';
     if (charts[chartId]) charts[chartId].destroy();
     charts[chartId] = new Chart(document.getElementById(chartId), {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                { label: 'Booked', data: bookedData, backgroundColor: '#3b82f6', borderRadius: 4 },
-                { label: 'Completed', data: completedData, backgroundColor: '#10b981', borderRadius: 4 }
-            ]
-        },
-        options: {
-            indexAxis: 'y', responsive: true,
-            plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
-            scales: {
-                x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-                y: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { display: false } }
-            }
-        }
+        data: { labels, datasets: [
+            { label: 'Booked', data: sorted.map(([,v]) => v.booked), backgroundColor: '#3b82f6', borderRadius: 4 },
+            { label: 'Completed', data: sorted.map(([,v]) => v.completed), backgroundColor: '#10b981', borderRadius: 4 }
+        ]},
+        options: { indexAxis:'y', responsive:true, plugins:{legend:{labels:{color:'#9ca3af',font:{size:10}}}}, scales:{ x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}, y:{ticks:{color:'#9ca3af',font:{size:9}},grid:{display:false}} } }
     });
-
-    // Stats
-    const statsEl = document.getElementById(`${person}Stats`);
     const totalBooked = contacts.length;
-    const totalCompleted = Object.values(campaignMap).reduce((s,v) => s+v.completed, 0);
-    const totalNoShow = Object.values(campaignMap).reduce((s,v) => s+v.noShow, 0);
+    const totalCompleted = Object.values(campaignMap).reduce((s,v)=>s+v.completed,0);
+    const totalNoShow = Object.values(campaignMap).reduce((s,v)=>s+v.noShow,0);
     const convRate = totalBooked > 0 ? ((totalCompleted/totalBooked)*100).toFixed(1) : '0';
-    statsEl.innerHTML = `
+    document.getElementById(`${person}Stats`).innerHTML = `
         <div class="flex gap-4 text-xs">
             <span class="text-blue-400">Booked: <strong>${totalBooked}</strong></span>
             <span class="text-green-400">Completed: <strong>${totalCompleted}</strong></span>
             <span class="text-red-400">No Show: <strong>${totalNoShow}</strong></span>
-            <span class="text-gray-300">Conv Rate: <strong>${convRate}%</strong></span>
-        </div>
-    `;
+            <span class="text-gray-300">Call Conv: <strong>${convRate}%</strong></span>
+        </div>`;
 }
 
 function renderTopAdsChart() {
     const adMap = {};
-    ghlContacts.filter(c => c.attributionSource?.utmContent).forEach(c => {
+    filteredContacts().filter(c => c.attributionSource?.utmContent).forEach(c => {
         const ad = c.attributionSource.utmContent;
         if (!adMap[ad]) adMap[ad] = { andries: 0, elmien: 0 };
         adMap[ad][c._person]++;
     });
-
     const sorted = Object.entries(adMap).sort((a,b) => (b[1].andries+b[1].elmien)-(a[1].andries+a[1].elmien)).slice(0,12);
-    const labels = sorted.map(([k]) => k.length > 40 ? k.slice(0,37)+'...' : k);
-
     if (charts.topAds) charts.topAds.destroy();
     charts.topAds = new Chart(document.getElementById('topAdsChart'), {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                { label: 'Andries Booked', data: sorted.map(([,v])=>v.andries), backgroundColor: '#3b82f6', borderRadius: 4 },
-                { label: 'Elmien Booked', data: sorted.map(([,v])=>v.elmien), backgroundColor: '#a855f7', borderRadius: 4 }
-            ]
-        },
-        options: {
-            indexAxis: 'y', responsive: true,
-            plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
-            scales: {
-                x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-                y: { stacked: true, ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { display: false } }
-            }
-        }
+        type:'bar', data:{ labels: sorted.map(([k])=>k.length>40?k.slice(0,37)+'...':k), datasets:[
+            { label:'Andries', data:sorted.map(([,v])=>v.andries), backgroundColor:'#3b82f6', borderRadius:4 },
+            { label:'Elmien', data:sorted.map(([,v])=>v.elmien), backgroundColor:'#a855f7', borderRadius:4 }
+        ]},
+        options:{ indexAxis:'y', responsive:true, plugins:{legend:{labels:{color:'#9ca3af',font:{size:10}}}}, scales:{ x:{stacked:true,ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}, y:{stacked:true,ticks:{color:'#9ca3af',font:{size:9}},grid:{display:false}} } }
     });
 }
 
 // ── Render: Attribution Table ─────────────────────
 function renderAttributionTable() {
     const filter = document.getElementById('attrPersonFilter').value;
-    const rows = {};
+    const contacts = filteredContacts();
 
-    ghlContacts.filter(c => c.attributionSource?.campaign).forEach(c => {
+    // Count total leads per campaign for conv rate
+    const leadsByCampaign = {};
+    ghlAllLeads.filter(c => isInDateRange(c.dateAdded) && c.source === 'Facebook').forEach(c => {
+        // We don't have campaign on list contacts, so we'll use the booked contacts' campaigns
+    });
+
+    const rows = {};
+    contacts.filter(c => c.attributionSource?.campaign).forEach(c => {
         if (filter !== 'all' && c._person !== filter) return;
-        const key = `${c.attributionSource.campaign}|||${c.attributionSource.utmMedium||''}|||${c.attributionSource.utmContent||''}`;
-        if (!rows[key]) rows[key] = { campaign: c.attributionSource.campaign, adset: c.attributionSource.utmMedium||'-', ad: c.attributionSource.utmContent||'-', booked:0, completed:0, noShow:0, cancelled:0, person: c._person };
+        const key = `${c.attributionSource.campaign}|||${c.attributionSource.utmMedium||''}|||${c.attributionSource.utmContent||''}|||${c._person}`;
+        if (!rows[key]) rows[key] = { campaign: c.attributionSource.campaign, adset: c.attributionSource.utmMedium||'-', ad: c.attributionSource.utmContent||'-', leads:0, booked:0, completed:0, noShow:0, cancelled:0, person: c._person };
         rows[key].booked++;
+        rows[key].leads++; // leads = booked for now (we have full leads count separately)
         if (c._person === 'andries' && c.tags?.includes('andries-call-completed')) rows[key].completed++;
         if (c._person === 'andries' && c.tags?.includes('andries no show')) rows[key].noShow++;
         if (c._person === 'elmien' && c.tags?.includes('elmien-appt-completed')) rows[key].completed++;
@@ -624,41 +655,49 @@ function renderAttributionTable() {
         if (c._person === 'elmien' && c.tags?.includes('elmien-cancelled-appt')) rows[key].cancelled++;
     });
 
+    // Try to get total leads per campaign from Meta insights
+    const metaLeadsByCampaign = {};
+    metaInsights.forEach(i => {
+        const leads = getConversions(i.actions);
+        if (leads > 0) metaLeadsByCampaign[i.campaign_name] = leads;
+    });
+
     const sorted = Object.values(rows).sort((a,b) => b.booked - a.booked);
-    document.getElementById('attrTableBody').innerHTML = sorted.map(r => `
+    document.getElementById('attrTableBody').innerHTML = sorted.map(r => {
+        const totalLeads = metaLeadsByCampaign[r.campaign] || r.booked;
+        const convRate = totalLeads > 0 ? ((r.booked / totalLeads) * 100).toFixed(1) : '0.0';
+        return `
         <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
             <td class="px-5 py-3 text-white max-w-[200px] truncate" title="${r.campaign}">${r.campaign}</td>
-            <td class="px-3 py-3 text-gray-400 max-w-[150px] truncate" title="${r.adset}">${r.adset}</td>
-            <td class="px-3 py-3 text-gray-300 max-w-[150px] truncate" title="${r.ad}">${r.ad}</td>
+            <td class="px-3 py-3 text-gray-400 max-w-[130px] truncate" title="${r.adset}">${r.adset}</td>
+            <td class="px-3 py-3 text-gray-300 max-w-[130px] truncate" title="${r.ad}">${r.ad}</td>
+            <td class="px-3 py-3 text-center font-mono text-gray-400">${totalLeads}</td>
             <td class="px-3 py-3 text-center font-mono text-blue-400 font-bold">${r.booked}</td>
+            <td class="px-3 py-3 text-center font-mono font-bold ${convColor(parseFloat(convRate))}">${convRate}%</td>
             <td class="px-3 py-3 text-center font-mono text-green-400">${r.completed}</td>
             <td class="px-3 py-3 text-center font-mono text-red-400">${r.noShow}</td>
             <td class="px-3 py-3 text-center font-mono text-yellow-400">${r.cancelled}</td>
             <td class="px-3 py-3 capitalize text-xs"><span class="px-2 py-0.5 rounded-full ${r.person==='andries'?'bg-blue-500/20 text-blue-300':'bg-purple-500/20 text-purple-300'}">${r.person}</span></td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function renderContactTable() {
     const userMap = { [ANDRIES_ID]: 'Andries', [ELMIEN_ID]: 'Elmien' };
-    const sorted = ghlContacts.filter(c => c.attributionSource?.campaign).sort((a,b) => new Date(b.dateAdded) - new Date(a.dateAdded));
-
+    const sorted = filteredContacts().filter(c => c.attributionSource?.campaign).sort((a,b) => new Date(b.dateAdded) - new Date(a.dateAdded));
     document.getElementById('contactTableBody').innerHTML = sorted.map(c => {
-        const attr = c.attributionSource;
-        const tags = c.tags || [];
+        const attr = c.attributionSource; const tags = c.tags || [];
         let status = 'booked';
         if (tags.includes('andries-call-completed') || tags.includes('elmien-appt-completed')) status = 'completed';
         else if (tags.includes('andries no show') || tags.includes('elmien-no show')) status = 'no show';
         else if (tags.includes('elmien-cancelled-appt')) status = 'cancelled';
         else if (tags.includes('leads disqualified - e')) status = 'disqualified';
-
-        const statusColors = { completed: 'text-green-400', 'no show': 'text-red-400', cancelled: 'text-yellow-400', booked: 'text-blue-400', disqualified: 'text-gray-500' };
+        const statusColors = { completed:'text-green-400','no show':'text-red-400',cancelled:'text-yellow-400',booked:'text-blue-400',disqualified:'text-gray-500' };
         const assigned = userMap[c.assignedTo] || c._person || '?';
         const date = c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-ZA') : '-';
-
         return `
         <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
-            <td class="px-5 py-2 text-white capitalize">${c.fullNameLowerCase || '?'}</td>
+            <td class="px-5 py-2 text-white capitalize">${c.fullNameLowerCase||'?'}</td>
             <td class="px-3 py-2 text-gray-400 max-w-[150px] truncate" title="${attr.campaign}">${attr.campaign}</td>
             <td class="px-3 py-2 text-gray-300 max-w-[120px] truncate" title="${attr.utmContent||''}">${attr.utmContent||'-'}</td>
             <td class="px-3 py-2 text-gray-400 max-w-[120px] truncate" title="${attr.formName||''}">${attr.formName||'-'}</td>
@@ -673,19 +712,17 @@ function renderContactTable() {
 function renderMetaKPIs(data) {
     const spend = parseFloat(data.spend||0), impressions = parseInt(data.impressions||0);
     const reach = parseInt(data.reach||0), clicks = parseInt(data.clicks||0);
-    const ctr = parseFloat(data.ctr||0), cpc = parseFloat(data.cpc||0);
-    const cpm = parseFloat(data.cpm||0), freq = parseFloat(data.frequency||0);
+    const ctr = parseFloat(data.ctr||0), freq = parseFloat(data.frequency||0);
     const conv = getConversions(data.actions);
-
+    const fc = filteredContacts();
     const kpis = [
         {l:'Spend',v:money(spend),c:'blue'},{l:'Impressions',v:num(impressions),c:'purple'},
         {l:'Reach',v:num(reach),c:'indigo'},{l:'Clicks',v:num(clicks),c:'cyan'},
-        {l:'CTR',v:pct(ctr),c:'green'},{l:'CPC',v:money(cpc),c:'yellow'},
-        {l:'CPM',v:money(cpm),c:'orange'},{l:'Frequency',v:dec(freq),c:'pink'},
+        {l:'CTR',v:pct(ctr),c:'green'},{l:'Frequency',v:dec(freq),c:'pink'},
         {l:'Conversions',v:num(conv),c:'emerald'},
-        {l:'GHL Andries',v:ghlAndries.fb,c:'blue'},{l:'GHL Elmien',v:ghlElmien.fb,c:'purple'},
+        {l:'GHL Andries',v:fc.filter(c=>c._person==='andries').length,c:'blue'},
+        {l:'GHL Elmien',v:fc.filter(c=>c._person==='elmien').length,c:'purple'},
     ];
-
     document.getElementById('metaKpiGrid').innerHTML = kpis.map(k => `
         <div class="kpi-card rounded-xl p-4 bg-gradient-to-br from-${k.c}-600/20 to-${k.c}-600/5 border border-${k.c}-500/20">
             <p class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">${k.l}</p>
@@ -699,8 +736,6 @@ function renderMetaCharts() {
     const spendVals = metaDailyInsights.map(d => parseFloat(d.spend||0));
     const convVals = metaDailyInsights.map(d => getConversions(d.actions));
     const ctrVals = metaDailyInsights.map(d => parseFloat(d.ctr||0));
-    const cpcVals = metaDailyInsights.map(d => parseFloat(d.cpc||0));
-
     const opts = { responsive:true, plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}}, scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}} };
 
     if (charts.spendConv) charts.spendConv.destroy();
@@ -711,54 +746,31 @@ function renderMetaCharts() {
         ]},
         options:{...opts,scales:{...opts.scales,y:{position:'left',ticks:{color:'#3b82f6',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y1:{position:'right',ticks:{color:'#10b981',font:{size:10}},grid:{display:false}}}}
     });
-
-    if (charts.ctrCpc) charts.ctrCpc.destroy();
-    charts.ctrCpc = new Chart(document.getElementById('ctrCpcChart'), {
+    if (charts.ctr) charts.ctr.destroy();
+    charts.ctr = new Chart(document.getElementById('ctrChart'), {
         type:'line', data:{ labels, datasets:[
-            {label:'CTR (%)',data:ctrVals,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.1)',fill:true,tension:0.3,yAxisID:'y'},
-            {label:'CPC ($)',data:cpcVals,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:0.3,yAxisID:'y1'}
+            {label:'CTR (%)',data:ctrVals,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.1)',fill:true,tension:0.3}
         ]},
-        options:{...opts,scales:{...opts.scales,y:{position:'left',ticks:{color:'#22c55e',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y1:{position:'right',ticks:{color:'#f59e0b',font:{size:10}},grid:{display:false}}}}
+        options:{...opts,scales:{...opts.scales,y:{ticks:{color:'#22c55e',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}
     });
 }
 
 function renderMetaCampaignTable() {
-    // Build GHL attribution lookup by campaignId
-    const ghlByMetaCampaign = {};
-    ghlContacts.filter(c => c.attributionSource?.campaignId).forEach(c => {
-        const cid = c.attributionSource.campaignId;
-        ghlByMetaCampaign[cid] = (ghlByMetaCampaign[cid]||0) + 1;
-    });
-    // Also match by campaign name
-    const ghlByName = {};
-    ghlContacts.filter(c => c.attributionSource?.campaign).forEach(c => {
-        const name = c.attributionSource.campaign;
-        ghlByName[name] = (ghlByName[name]||0) + 1;
-    });
+    const ghlByMetaCampaign = {}, ghlByName = {};
+    filteredContacts().filter(c => c.attributionSource?.campaignId).forEach(c => { ghlByMetaCampaign[c.attributionSource.campaignId] = (ghlByMetaCampaign[c.attributionSource.campaignId]||0)+1; });
+    filteredContacts().filter(c => c.attributionSource?.campaign).forEach(c => { ghlByName[c.attributionSource.campaign] = (ghlByName[c.attributionSource.campaign]||0)+1; });
 
     let merged = metaCampaigns.map(c => {
-        const insight = metaInsights.find(i => i.campaign_id === c.id) || {};
-        return {
-            id: c.id, name: c.name, status: c.status,
-            spend: parseFloat(insight.spend||0), impressions: parseInt(insight.impressions||0),
-            clicks: parseInt(insight.clicks||0), ctr: parseFloat(insight.ctr||0),
-            cpc: parseFloat(insight.cpc||0), cpm: parseFloat(insight.cpm||0),
-            conversions: getConversions(insight.actions),
-            ghlBooked: ghlByMetaCampaign[c.id] || ghlByName[c.name] || 0
-        };
+        const ins = metaInsights.find(i => i.campaign_id === c.id) || {};
+        const booked = ghlByMetaCampaign[c.id] || ghlByName[c.name] || 0;
+        const conv = getConversions(ins.actions);
+        const convRate = conv > 0 ? ((booked/conv)*100).toFixed(1) : '0.0';
+        return { id:c.id, name:c.name, status:c.status, spend:parseFloat(ins.spend||0), impressions:parseInt(ins.impressions||0), clicks:parseInt(ins.clicks||0), ctr:parseFloat(ins.ctr||0), conversions:conv, ghlBooked:booked, convRate:parseFloat(convRate) };
     });
+    merged.sort((a,b) => metaSortState.dir==='asc' ? a[metaSortState.key]-b[metaSortState.key] : b[metaSortState.key]-a[metaSortState.key]);
+    const statusDot = s => { const cls=s==='ACTIVE'?'text-green-400':s==='PAUSED'?'text-yellow-400':'text-gray-500'; return `<span class="${cls}">\u25CF</span> <span class="text-gray-400">${(s||'').charAt(0)+(s||'').slice(1).toLowerCase()}</span>`; };
 
-    merged.sort((a,b) => {
-        const av = a[metaSortState.key], bv = b[metaSortState.key];
-        return metaSortState.dir === 'asc' ? av - bv : bv - av;
-    });
-
-    const statusDot = s => {
-        const cls = s==='ACTIVE'?'text-green-400':s==='PAUSED'?'text-yellow-400':'text-gray-500';
-        return `<span class="${cls}">\u25CF</span> <span class="text-gray-400">${(s||'').charAt(0)+(s||'').slice(1).toLowerCase()}</span>`;
-    };
-
-    document.getElementById('metaCampaignBody').innerHTML = merged.filter(c => c.spend > 0 || c.ghlBooked > 0).map(c => `
+    document.getElementById('metaCampaignBody').innerHTML = merged.filter(c => c.spend>0||c.ghlBooked>0).map(c => `
         <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
             <td class="px-5 py-3 font-medium text-white max-w-[200px] truncate" title="${c.name}">${c.name}</td>
             <td class="px-3 py-3 text-xs">${statusDot(c.status)}</td>
@@ -766,48 +778,114 @@ function renderMetaCampaignTable() {
             <td class="px-3 py-3 text-right font-mono">${num(c.impressions)}</td>
             <td class="px-3 py-3 text-right font-mono">${num(c.clicks)}</td>
             <td class="px-3 py-3 text-right font-mono">${pct(c.ctr)}</td>
-            <td class="px-3 py-3 text-right font-mono">${money(c.cpc)}</td>
-            <td class="px-3 py-3 text-right font-mono">${money(c.cpm)}</td>
             <td class="px-3 py-3 text-right font-mono">${num(c.conversions)}</td>
-            <td class="px-3 py-3 text-center font-mono font-bold ${c.ghlBooked > 0 ? 'text-green-400' : 'text-gray-600'}">${c.ghlBooked || '-'}</td>
+            <td class="px-3 py-3 text-center font-mono font-bold ${c.ghlBooked>0?'text-green-400':'text-gray-600'}">${c.ghlBooked||'-'}</td>
+            <td class="px-3 py-3 text-center font-mono font-bold ${convColor(c.convRate)}">${c.convRate > 0 ? c.convRate+'%' : '-'}</td>
         </tr>
     `).join('');
 }
+function sortMetaTable(key) { metaSortState={key,dir:metaSortState.key===key&&metaSortState.dir==='desc'?'asc':'desc'}; renderMetaCampaignTable(); }
 
-function sortMetaTable(key) {
-    metaSortState = { key, dir: metaSortState.key===key && metaSortState.dir==='desc' ? 'asc' : 'desc' };
-    renderMetaCampaignTable();
+// ── Render: Video Performance Tab ─────────────────
+function renderVideoTab() {
+    if (!META_TOKEN) {
+        document.getElementById('videoNoMeta').classList.remove('hidden');
+        document.getElementById('videoContent').classList.add('hidden');
+        return;
+    }
+    document.getElementById('videoNoMeta').classList.add('hidden');
+    document.getElementById('videoContent').classList.remove('hidden');
+
+    if (!metaVideoInsights.length) {
+        document.getElementById('videoTableBody').innerHTML = '<tr><td colspan="9" class="px-5 py-8 text-center text-gray-500">No video data available for this period.</td></tr>';
+        return;
+    }
+
+    // Group by campaign
+    const campaigns = {};
+    metaVideoInsights.forEach(ad => {
+        const campName = ad.campaign_name || 'Unknown';
+        if (!campaigns[campName]) campaigns[campName] = { impressions: 0, v3s: 0, v25: 0, v50: 0, v75: 0, v100: 0, ads: [] };
+        const impr = parseInt(ad.impressions||0);
+        const v3s = getVideoMetric(ad.actions, 'video_view') || getVideoMetric(ad.video_thruplay_watched_actions, 'video_view');
+        const v25 = getVideoMetric(ad.video_p25_watched_actions, 'video_view');
+        const v50 = getVideoMetric(ad.video_p50_watched_actions, 'video_view');
+        const v75 = getVideoMetric(ad.video_p75_watched_actions, 'video_view');
+        const v100 = getVideoMetric(ad.video_p100_watched_actions, 'video_view');
+        campaigns[campName].impressions += impr;
+        campaigns[campName].v3s += v3s; campaigns[campName].v25 += v25;
+        campaigns[campName].v50 += v50; campaigns[campName].v75 += v75; campaigns[campName].v100 += v100;
+        campaigns[campName].ads.push({ name: ad.ad_name||'Unknown', id: ad.ad_id, impressions: impr, v3s, v25, v50, v75, v100 });
+    });
+
+    const sorted = Object.entries(campaigns).sort((a,b) => b[1].impressions - a[1].impressions);
+
+    function dropoffBar(v3s, v25, v50, v75, v100, impr) {
+        if (!impr) return '<span class="text-gray-600">-</span>';
+        const vals = [
+            { pct: (v3s/impr*100), color: '#3b82f6', label: '3s' },
+            { pct: (v25/impr*100), color: '#22c55e', label: '25%' },
+            { pct: (v50/impr*100), color: '#eab308', label: '50%' },
+            { pct: (v75/impr*100), color: '#f97316', label: '75%' },
+            { pct: (v100/impr*100), color: '#ef4444', label: '100%' },
+        ];
+        return `<div class="flex flex-col gap-0.5">${vals.map(v => `<div class="flex items-center gap-1"><div class="dropoff-bar" style="width:${Math.max(v.pct,1)}%;max-width:100%;background:${v.color}"></div><span class="text-[9px] text-gray-500 w-8">${v.pct.toFixed(0)}%</span></div>`).join('')}</div>`;
+    }
+
+    function videoPct(val, impr) {
+        if (!impr) return '-';
+        const p = (val/impr*100);
+        return `<span class="${hookColor(p)}">${p.toFixed(1)}%</span>`;
+    }
+
+    let html = '';
+    sorted.forEach(([campName, data], idx) => {
+        const hookRate = data.impressions > 0 ? (data.v3s/data.impressions*100) : 0;
+        html += `
+        <tr class="expand-row border-b border-gray-800/30" onclick="toggleVideoExpand('vexp-${idx}', this)">
+            <td class="px-5 py-3 text-gray-500"><svg class="w-3.5 h-3.5 expand-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></td>
+            <td class="px-3 py-3 font-medium text-white max-w-[200px] truncate" title="${campName}">${campName}</td>
+            <td class="px-3 py-3 text-right font-mono">${num(data.impressions)}</td>
+            <td class="px-3 py-3 text-center font-mono font-bold ${hookColor(hookRate)}">${hookRate.toFixed(1)}%</td>
+            <td class="px-3 py-3 text-center font-mono">${videoPct(data.v25, data.impressions)}</td>
+            <td class="px-3 py-3 text-center font-mono">${videoPct(data.v50, data.impressions)}</td>
+            <td class="px-3 py-3 text-center font-mono">${videoPct(data.v75, data.impressions)}</td>
+            <td class="px-3 py-3 text-center font-mono">${videoPct(data.v100, data.impressions)}</td>
+            <td class="px-3 py-3">${dropoffBar(data.v3s, data.v25, data.v50, data.v75, data.v100, data.impressions)}</td>
+        </tr>
+        <tr id="vexp-${idx}" class="hidden">
+            <td colspan="9" class="p-0">
+                <div class="bg-dark-800/50 px-8 py-3">
+                    <table class="w-full text-xs">
+                        ${data.ads.filter(a => a.impressions > 0).sort((a,b) => b.impressions-a.impressions).map(ad => {
+                            const adHook = ad.impressions > 0 ? (ad.v3s/ad.impressions*100) : 0;
+                            return `
+                            <tr class="border-b border-gray-800/20">
+                                <td class="px-3 py-2 text-gray-300 max-w-[200px] truncate" title="${ad.name}">${ad.name}</td>
+                                <td class="px-3 py-2 text-right font-mono text-gray-400">${num(ad.impressions)}</td>
+                                <td class="px-3 py-2 text-center font-mono font-bold ${hookColor(adHook)}">${adHook.toFixed(1)}%</td>
+                                <td class="px-3 py-2 text-center font-mono">${videoPct(ad.v25, ad.impressions)}</td>
+                                <td class="px-3 py-2 text-center font-mono">${videoPct(ad.v50, ad.impressions)}</td>
+                                <td class="px-3 py-2 text-center font-mono">${videoPct(ad.v75, ad.impressions)}</td>
+                                <td class="px-3 py-2 text-center font-mono">${videoPct(ad.v100, ad.impressions)}</td>
+                                <td class="px-3 py-2">${dropoffBar(ad.v3s, ad.v25, ad.v50, ad.v75, ad.v100, ad.impressions)}</td>
+                            </tr>`;
+                        }).join('')}
+                    </table>
+                </div>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('videoTableBody').innerHTML = html;
 }
 
-function setMetaRange(preset) {
-    const today = new Date();
-    let since, until;
-    switch(preset) {
-        case 'last_7d': const s7=new Date(today); s7.setDate(s7.getDate()-6); since=fmt(s7); until=fmt(today); break;
-        case 'last_30d': const s30=new Date(today); s30.setDate(s30.getDate()-29); since=fmt(s30); until=fmt(today); break;
-        case 'this_month': since=fmt(new Date(today.getFullYear(),today.getMonth(),1)); until=fmt(today); break;
-    }
-    metaDateRange = {since,until};
-    document.querySelectorAll('.range-btn').forEach(b => {
-        b.classList.toggle('bg-blue-600', b.dataset.range===preset);
-        b.classList.toggle('text-white', b.dataset.range===preset);
-    });
-    // Re-fetch meta data
-    if (META_TOKEN) {
-        showLoading(true, 'Refreshing Meta data...');
-        const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type,action_values';
-        Promise.all([
-            metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
-            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,cpc,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
-            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' })
-        ]).then(([acct, daily, camp]) => {
-            metaInsights = camp; metaDailyInsights = daily;
-            renderMetaKPIs(acct.data?.[0]||{});
-            renderMetaCharts();
-            renderMetaCampaignTable();
-            showLoading(false);
-        }).catch(e => { showLoading(false); showError(e.message); });
-    }
+function toggleVideoExpand(id, row) {
+    const el = document.getElementById(id);
+    const arrow = row.querySelector('.expand-arrow');
+    const isOpen = !el.classList.contains('hidden');
+    // Close all
+    document.querySelectorAll('[id^="vexp-"]:not(.hidden)').forEach(e => { e.classList.add('hidden'); e.previousElementSibling?.querySelector('.expand-arrow')?.style.removeProperty('transform'); });
+    if (!isOpen) { el.classList.remove('hidden'); arrow.style.transform = 'rotate(90deg)'; }
 }
 </script>
 </body>
