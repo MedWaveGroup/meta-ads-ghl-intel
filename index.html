@@ -972,11 +972,15 @@ function renderIntelTab() {
     document.getElementById('killDays').textContent = killDays;
 
     if (metaAdSetInsights.length || metaAdCreatives.length) {
-        // Build ad set performance
+        // Build lookup of active campaigns
+        const activeCampaigns = new Set(metaCampaigns.filter(c => c.status === 'ACTIVE').map(c => c.name));
+
+        // Build ad set performance — only from ACTIVE campaigns
         const adSetPerf = {};
         metaAdSetInsights.forEach(a => {
+            if (!activeCampaigns.has(a.campaign_name)) return; // skip paused/archived campaigns
             const key = `${a.campaign_name} >> ${a.adset_name}`;
-            if (!adSetPerf[key]) adSetPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, adsetId: a.adset_id, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0, ads: [] };
+            if (!adSetPerf[key]) adSetPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, adsetId: a.adset_id, campaignId: a.campaign_id, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0, ads: [] };
             adSetPerf[key].spend += parseFloat(a.spend||0);
             adSetPerf[key].impressions += parseInt(a.impressions||0);
             adSetPerf[key].clicks += parseInt(a.clicks||0);
@@ -984,9 +988,10 @@ function renderIntelTab() {
             adSetPerf[key].booked = ghlBookedByAdSet[a.adset_name] || 0;
         });
 
-        // Build ad-level performance
+        // Build ad-level performance — only from ACTIVE campaigns
         const adPerf = {};
         metaAdCreatives.forEach(a => {
+            if (!activeCampaigns.has(a.campaign_name)) return;
             const key = a.ad_id || a.ad_name;
             if (!adPerf[key]) adPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, ad: a.ad_name, adId: a.ad_id, adsetId: a.adset_id, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0 };
             adPerf[key].spend += parseFloat(a.spend||0);
@@ -1006,23 +1011,50 @@ function renderIntelTab() {
         const underperformers = Object.values(adSetPerf)
             .filter(a => a.spend > 0)
             .sort((a,b) => {
-                if (a.booked !== b.booked) return a.booked - b.booked; // fewest booked first
-                return b.spend - a.spend; // then highest spend
+                if (a.booked !== b.booked) return a.booked - b.booked;
+                return b.spend - a.spend;
             })
             .slice(0, 5);
 
         const cpl = (spend, leads) => leads > 0 ? money(spend / leads) : '-';
 
-        document.getElementById('killListContent').innerHTML = `
-            <div class="space-y-3">
-                ${underperformers.map((item, idx) => `
+        // Smart recommendation logic per ad set
+        function getRecommendation(item) {
+            const totalAds = item.ads.length;
+            const zeroBookedAds = item.ads.filter(a => a.booked === 0);
+            const hasBookedAds = item.ads.filter(a => a.booked > 0);
+
+            if (item.booked === 0 && item.spend > 0) {
+                return { level: 'critical', icon: '\u26D4', text: `SWITCH OFF AD SET \u2014 ${money(item.spend)} spent with zero booked appointments. No ads in this set are converting to bookings.`, action: 'adset' };
+            }
+            if (zeroBookedAds.length > 0 && hasBookedAds.length > 0) {
+                const wastedSpend = zeroBookedAds.reduce((s,a) => s + a.spend, 0);
+                return { level: 'warning', icon: '\u26A0', text: `PAUSE ${zeroBookedAds.length} underperforming ad${zeroBookedAds.length > 1 ? 's' : ''} \u2014 ${money(wastedSpend)} wasted on ads with zero bookings. Keep the ${hasBookedAds.length} ad${hasBookedAds.length > 1 ? 's' : ''} that are booking.`, action: 'ads' };
+            }
+            if (item.booked > 0 && item.leads > 0) {
+                const bookRate = (item.booked / item.leads * 100);
+                if (bookRate < 5) {
+                    return { level: 'warning', icon: '\u26A0', text: `LOW CONVERSION \u2014 only ${bookRate.toFixed(1)}% of leads are booking. Review targeting and creative quality. Consider pausing if no improvement in 7 days.`, action: 'review' };
+                }
+            }
+            return { level: 'info', icon: '\u2139\uFE0F', text: 'Monitor \u2014 low bookings relative to spend. Review in next cycle.', action: 'review' };
+        }
+
+        document.getElementById('killListContent').innerHTML = underperformers.length === 0
+            ? '<p class="text-gray-500 text-xs">No underperforming active campaigns found. All active campaigns are generating bookings.</p>'
+            : `<div class="space-y-3">
+                ${underperformers.map((item, idx) => {
+                    const rec = getRecommendation(item);
+                    const recColors = { critical: 'text-red-400', warning: 'text-yellow-400', info: 'text-blue-400' };
+                    const recBg = { critical: 'bg-red-500/10 border-red-500/20', warning: 'bg-yellow-500/10 border-yellow-500/20', info: 'bg-blue-500/10 border-blue-500/20' };
+                    return `
                     <div class="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
                         <div class="flex items-start justify-between gap-4 mb-2">
                             <div class="flex items-center gap-3">
                                 <span class="w-7 h-7 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-sm">${idx+1}</span>
                                 <div>
                                     <p class="text-white font-medium text-sm">${item.adset}</p>
-                                    <p class="text-gray-500 text-[10px]">${item.campaign}</p>
+                                    <p class="text-gray-500 text-[10px]">${item.campaign} <span class="text-green-500">\u25CF Active</span></p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-4">
@@ -1032,35 +1064,38 @@ function renderIntelTab() {
                                     <div><p class="text-[10px] text-gray-500">CPL</p><p class="text-sm font-mono text-yellow-400">${cpl(item.spend, item.leads)}</p></div>
                                     <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-sm font-mono font-bold ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">${item.booked}</p></div>
                                 </div>
-                                ${item.adsetId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${item.adsetId}', this.dataset.status, this)" class="px-3 py-1.5 text-[11px] font-medium rounded-lg border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause Ad Set</button>` : ''}
+                                ${rec.action === 'adset' && item.adsetId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${item.adsetId}', this.dataset.status, this)" class="px-3 py-1.5 text-[11px] font-medium rounded-lg border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause Ad Set</button>` : ''}
                             </div>
                         </div>
                         ${item.ads.length > 0 ? `
                         <div class="mt-2 pt-2 border-t border-red-500/10">
                             <p class="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Ads in this ad set:</p>
                             <div class="space-y-1">
-                                ${item.ads.sort((a,b) => a.booked - b.booked || b.spend - a.spend).map(ad => `
-                                    <div class="flex items-center justify-between text-xs py-1.5 px-2 rounded ${ad.booked === 0 ? 'bg-red-500/5' : 'bg-dark-700/50'}">
-                                        <span class="text-gray-300 max-w-[200px] truncate" title="${ad.ad}">${ad.ad}</span>
+                                ${item.ads.sort((a,b) => a.booked - b.booked || b.spend - a.spend).map(ad => {
+                                    const shouldPause = ad.booked === 0 && ad.spend > 0;
+                                    return `
+                                    <div class="flex items-center justify-between text-xs py-1.5 px-2 rounded ${shouldPause ? 'bg-red-500/5' : 'bg-dark-700/50'}">
+                                        <div class="flex items-center gap-2 max-w-[220px]">
+                                            ${shouldPause ? '<span class="text-red-400 text-[10px]">\u25CF</span>' : '<span class="text-green-400 text-[10px]">\u25CF</span>'}
+                                            <span class="text-gray-300 truncate" title="${ad.ad}">${ad.ad}</span>
+                                        </div>
                                         <div class="flex items-center gap-3">
                                             <span class="text-gray-500 font-mono">${money(ad.spend)}</span>
                                             <span class="text-gray-400 font-mono">${num(ad.leads)} leads</span>
                                             <span class="font-mono font-bold ${ad.booked === 0 ? 'text-red-400' : 'text-green-400'}">${ad.booked} booked</span>
-                                            ${ad.adId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${ad.adId}', this.dataset.status, this)" class="px-2 py-1 text-[10px] font-medium rounded border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause</button>` : ''}
+                                            ${shouldPause && ad.adId ? `<button data-status="ACTIVE" onclick="event.stopPropagation();toggleMetaStatus('${ad.adId}', this.dataset.status, this)" class="px-2 py-1 text-[10px] font-medium rounded border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/30 whitespace-nowrap transition">\u23F8 Pause</button>` : ''}
                                         </div>
-                                    </div>
-                                `).join('')}
+                                    </div>`;
+                                }).join('')}
                             </div>
                         </div>` : ''}
-                        <div class="mt-2 pt-2 border-t border-red-500/10">
-                            <p class="text-[10px] ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">
-                                ${item.booked === 0
-                                    ? '\u26A0 RECOMMEND: Switch off \u2014 spending ' + money(item.spend) + ' with zero booked appointments.'
-                                    : '\u26A0 REVIEW: High spend relative to bookings. Consider adjusting targeting or creative.'}
+                        <div class="mt-2 pt-2 border-t border ${recBg[rec.level]} rounded-lg p-2">
+                            <p class="text-[11px] ${recColors[rec.level]} font-medium">
+                                ${rec.icon} ${rec.text}
                             </p>
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`;
+                }).join('')}
             </div>`;
     }
 
