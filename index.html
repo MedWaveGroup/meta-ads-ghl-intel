@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Ads + GHL Attribution Intel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+        .kpi-card { transition: transform 0.15s, box-shadow 0.15s; }
+        .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e1e2e; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        input[type="date"] { color-scheme: dark; }
+        .tab-active { background: #3b82f6; color: white; }
+        .tab-inactive { background: transparent; color: #9ca3af; }
+        .tab-inactive:hover { color: white; background: rgba(255,255,255,0.05); }
+        .sort-btn { cursor: pointer; user-select: none; }
+        .sort-btn:hover { color: #60a5fa; }
+        .progress-bar { height: 6px; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { dark: { 900: '#0f0f1a', 800: '#161625', 700: '#1e1e30', 600: '#2a2a40' } } } }
+        }
+    </script>
+</head>
+<body class="bg-dark-900 text-gray-200 min-h-screen">
+
+<!-- Auth Modal -->
+<div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div class="glass rounded-2xl p-8 w-full max-w-lg mx-4 fade-in">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-lg">M</div>
+            <div>
+                <h1 class="text-xl font-bold text-white">Meta Ads + GHL Intel</h1>
+                <p class="text-sm text-gray-400">Connect both systems to see which ads create booked appointments</p>
+            </div>
+        </div>
+        <div class="space-y-4">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Meta Ads</p>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Access Token</label>
+                <input id="metaToken" type="password" placeholder="Meta access token" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Ad Account ID</label>
+                <input id="metaAccount" type="text" placeholder="act_123456789" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <hr class="border-gray-800">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">GoHighLevel</p>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">API Key</label>
+                <input id="ghlKey" type="password" placeholder="GHL API key" class="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div id="authError" class="hidden text-red-400 text-sm bg-red-400/10 rounded-lg p-3"></div>
+            <button onclick="handleConnect()" id="connectBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2">Connect</button>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" class="hidden">
+    <header class="sticky top-0 z-40 glass border-b border-gray-800/50 px-6 py-3">
+        <div class="max-w-[1600px] mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm">M</div>
+                <div>
+                    <h1 class="text-base font-semibold text-white leading-tight">Meta Ads + GHL Intel</h1>
+                    <p id="accountName" class="text-xs text-gray-500"></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <!-- Tabs -->
+                <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
+                    <button onclick="switchTab('overview')" data-tab="overview" class="tab-btn tab-active px-3 py-1.5 rounded-md transition">Overview</button>
+                    <button onclick="switchTab('attribution')" data-tab="attribution" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Ad Attribution</button>
+                    <button onclick="switchTab('meta')" data-tab="meta" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Meta Ads</button>
+                </div>
+                <button onclick="refreshAll()" id="refreshBtn" class="bg-dark-600 hover:bg-dark-700 p-2 rounded-lg transition" title="Refresh">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+                <button onclick="disconnect()" class="text-xs text-gray-500 hover:text-red-400 transition">Disconnect</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+        <div id="loadingOverlay" class="hidden">
+            <div class="flex items-center gap-3 py-4"><div class="spinner"></div><span class="text-gray-400" id="loadingText">Loading...</span></div>
+            <div class="progress-bar bg-dark-700 w-full max-w-md"><div id="progressFill" class="progress-fill bg-blue-600" style="width:0%"></div></div>
+        </div>
+        <div id="errorBanner" class="hidden bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 text-sm"></div>
+
+        <!-- TAB: Overview -->
+        <div id="tab-overview" class="space-y-6 fade-in">
+            <!-- Funnel KPIs -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3" id="funnelKpis"></div>
+
+            <!-- Andries & Elmien Side by Side -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-white mb-1">Andries Maritz — Pipeline</h3>
+                    <p class="text-xs text-gray-500 mb-4">Booked appointments from Facebook ads</p>
+                    <canvas id="andriesFunnelChart"></canvas>
+                    <div id="andriesStats" class="mt-4 space-y-2"></div>
+                </div>
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-white mb-1">Elmien Geldenhuys — Pipeline</h3>
+                    <p class="text-xs text-gray-500 mb-4">Booked appointments from Facebook ads</p>
+                    <canvas id="elmienFunnelChart"></canvas>
+                    <div id="elmienStats" class="mt-4 space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Top Performing Ads for Bookings -->
+            <div class="glass rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-white mb-3">Top Ads Creating Booked Appointments</h3>
+                <canvas id="topAdsChart" height="70"></canvas>
+            </div>
+        </div>
+
+        <!-- TAB: Attribution -->
+        <div id="tab-attribution" class="hidden space-y-6 fade-in">
+            <div class="glass rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white">Campaign → Booked Appointment Attribution</h3>
+                    <select id="attrPersonFilter" onchange="renderAttributionTable()" class="bg-dark-800 border border-gray-700 rounded-lg text-xs px-2 py-1">
+                        <option value="all">All</option>
+                        <option value="andries">Andries</option>
+                        <option value="elmien">Elmien</option>
+                    </select>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="text-gray-500 border-b border-gray-800/50">
+                                <th class="text-left px-5 py-3 font-medium">Campaign</th>
+                                <th class="text-left px-3 py-3 font-medium">Ad Set</th>
+                                <th class="text-left px-3 py-3 font-medium">Ad Content</th>
+                                <th class="text-center px-3 py-3 font-medium">Booked</th>
+                                <th class="text-center px-3 py-3 font-medium">Completed</th>
+                                <th class="text-center px-3 py-3 font-medium">No Show</th>
+                                <th class="text-center px-3 py-3 font-medium">Cancelled</th>
+                                <th class="text-left px-3 py-3 font-medium">Person</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attrTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Contact-level detail -->
+            <div class="glass rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-800/50">
+                    <h3 class="text-sm font-semibold text-white">Contact-Level Attribution Detail</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="text-gray-500 border-b border-gray-800/50">
+                                <th class="text-left px-5 py-3 font-medium">Contact</th>
+                                <th class="text-left px-3 py-3 font-medium">Campaign</th>
+                                <th class="text-left px-3 py-3 font-medium">Ad Content</th>
+                                <th class="text-left px-3 py-3 font-medium">Form</th>
+                                <th class="text-left px-3 py-3 font-medium">Assigned To</th>
+                                <th class="text-left px-3 py-3 font-medium">Status</th>
+                                <th class="text-left px-3 py-3 font-medium">Date Added</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Meta Ads -->
+        <div id="tab-meta" class="hidden space-y-6 fade-in">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3" id="metaKpiGrid"></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-400 mb-3">Spend & Conversions Trend</h3>
+                    <canvas id="spendConvChart"></canvas>
+                </div>
+                <div class="glass rounded-xl p-5">
+                    <h3 class="text-sm font-semibold text-gray-400 mb-3">CTR & CPC Trend</h3>
+                    <canvas id="ctrCpcChart"></canvas>
+                </div>
+            </div>
+            <div class="glass rounded-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-800/50 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-white">Campaigns</h3>
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
+                            <button onclick="setMetaRange('last_7d')" data-range="last_7d" class="range-btn px-3 py-1.5 rounded-md bg-blue-600 text-white">7D</button>
+                            <button onclick="setMetaRange('last_30d')" data-range="last_30d" class="range-btn px-3 py-1.5 rounded-md">30D</button>
+                            <button onclick="setMetaRange('this_month')" data-range="this_month" class="range-btn px-3 py-1.5 rounded-md">MTD</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="text-gray-500 border-b border-gray-800/50">
+                                <th class="text-left px-5 py-3 font-medium">Campaign</th>
+                                <th class="text-left px-3 py-3 font-medium">Status</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('spend')">Spend</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('impressions')">Impr.</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('clicks')">Clicks</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('ctr')">CTR</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('cpc')">CPC</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('cpm')">CPM</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('conversions')">Conv.</th>
+                                <th class="text-center px-3 py-3 font-medium text-green-400">GHL Booked</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metaCampaignBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────
+const storage = (() => {
+    const mem = {};
+    try { sessionStorage.setItem('__t','1'); sessionStorage.removeItem('__t'); return sessionStorage; }
+    catch { return { getItem: k=>mem[k]??null, setItem:(k,v)=>{mem[k]=v;}, removeItem:k=>{delete mem[k];} }; }
+})();
+
+let META_TOKEN = '', META_ACCOUNT = '', GHL_TOKEN = '';
+let metaDateRange = { since: '', until: '' };
+let metaSortState = { key: 'spend', dir: 'desc' };
+
+// GHL data
+let ghlContacts = []; // all fetched contacts with attribution
+let ghlAndries = [];
+let ghlElmien = [];
+const ANDRIES_ID = 'Yj7mjEZBYBC5CqF1dNL2';
+const ELMIEN_ID = 'GYsOP4uVvbzoI919XzmT';
+const GHL_BASE = 'https://rest.gohighlevel.com/v1';
+const META_BASE = 'https://graph.facebook.com/v21.0';
+
+// Meta data
+let metaCampaigns = [], metaInsights = [], metaDailyInsights = [];
+let charts = {};
+
+// ── Auth ──────────────────────────────────────────
+async function handleConnect() {
+    const metaToken = document.getElementById('metaToken').value.trim();
+    const metaAcct = document.getElementById('metaAccount').value.trim();
+    const ghlKey = document.getElementById('ghlKey').value.trim();
+    const errEl = document.getElementById('authError');
+    const btn = document.getElementById('connectBtn');
+
+    if (!ghlKey) { errEl.textContent = 'GHL API key is required.'; errEl.classList.remove('hidden'); return; }
+
+    btn.innerHTML = '<div class="spinner"></div> Connecting...'; btn.disabled = true;
+    errEl.classList.add('hidden');
+
+    try {
+        // Test GHL
+        const ghlRes = await fetch(`${GHL_BASE}/users/`, { headers: { Authorization: `Bearer ${ghlKey}` } });
+        const ghlData = await ghlRes.json();
+        if (!ghlData.users) throw new Error('Invalid GHL API key');
+
+        GHL_TOKEN = ghlKey;
+        storage.setItem('ghl_key', ghlKey);
+
+        // Test Meta (optional)
+        if (metaToken && metaAcct) {
+            const acctId = metaAcct.startsWith('act_') ? metaAcct : `act_${metaAcct}`;
+            const metaRes = await fetch(`${META_BASE}/${acctId}?fields=name,account_id,currency&access_token=${metaToken}`);
+            const metaData = await metaRes.json();
+            if (metaData.error) throw new Error('Meta: ' + metaData.error.message);
+            META_TOKEN = metaToken; META_ACCOUNT = acctId;
+            storage.setItem('meta_token', metaToken); storage.setItem('meta_account', acctId);
+            document.getElementById('accountName').textContent = `${metaData.name} (${metaData.account_id}) \u2022 ${metaData.currency}`;
+        } else {
+            document.getElementById('accountName').textContent = 'GHL Only Mode';
+        }
+
+        document.getElementById('authModal').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        refreshAll();
+    } catch (e) {
+        errEl.textContent = e.message; errEl.classList.remove('hidden');
+    } finally {
+        btn.innerHTML = 'Connect'; btn.disabled = false;
+    }
+}
+
+function disconnect() {
+    ['meta_token','meta_account','ghl_key'].forEach(k => storage.removeItem(k));
+    META_TOKEN = ''; META_ACCOUNT = ''; GHL_TOKEN = '';
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('authModal').classList.remove('hidden');
+}
+
+// Auto-restore
+(function() {
+    const mt = storage.getItem('meta_token'), ma = storage.getItem('meta_account'), gk = storage.getItem('ghl_key');
+    if (gk) {
+        document.getElementById('ghlKey').value = gk;
+        if (mt) document.getElementById('metaToken').value = mt;
+        if (ma) document.getElementById('metaAccount').value = ma;
+        handleConnect();
+    }
+})();
+
+// ── Tabs ──────────────────────────────────────────
+function switchTab(tab) {
+    ['overview','attribution','meta'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
+    });
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('tab-active', b.dataset.tab === tab);
+        b.classList.toggle('tab-inactive', b.dataset.tab !== tab);
+    });
+}
+
+// ── Helpers ───────────────────────────────────────
+function money(v) { return '$' + parseFloat(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function num(v) { return parseFloat(v||0).toLocaleString('en-US'); }
+function pct(v) { return parseFloat(v||0).toFixed(2) + '%'; }
+function dec(v,d=2) { return parseFloat(v||0).toFixed(d); }
+function fmt(d) { return d.toISOString().split('T')[0]; }
+
+function getConversions(actions) {
+    if (!actions) return 0;
+    for (const t of ['offsite_conversion.fb_pixel_purchase','purchase','omni_purchase','lead','complete_registration','link_click','landing_page_view']) {
+        const a = actions.find(x => x.action_type === t);
+        if (a) return parseFloat(a.value)||0;
+    }
+    return 0;
+}
+
+function showLoading(show, text) {
+    document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
+    if (text) document.getElementById('loadingText').textContent = text;
+}
+function setProgress(pct) { document.getElementById('progressFill').style.width = pct + '%'; }
+function showError(msg) { const el = document.getElementById('errorBanner'); el.textContent = msg; el.classList.remove('hidden'); }
+function hideError() { document.getElementById('errorBanner').classList.add('hidden'); }
+
+// ── GHL API ───────────────────────────────────────
+async function ghlFetch(path) {
+    const res = await fetch(`${GHL_BASE}${path}`, { headers: { Authorization: `Bearer ${GHL_TOKEN}` } });
+    return res.json();
+}
+
+async function fetchGHLContacts(query, limit = 100) {
+    const data = await ghlFetch(`/contacts/?limit=${limit}&locationId=QdLXaFEqrdF0JbVbpKLw&query=${encodeURIComponent(query)}`);
+    return data.contacts || [];
+}
+
+async function fetchContactDetail(id) {
+    const data = await ghlFetch(`/contacts/${id}`);
+    return data.contact || {};
+}
+
+async function fetchGHLAttributionData() {
+    showLoading(true, 'Fetching GHL contacts (Andries)...');
+    setProgress(10);
+
+    // Fetch Andries booked contacts
+    const andriesContacts = await fetchGHLContacts('andries booked', 100);
+    const andriesFb = andriesContacts.filter(c => c.source === 'Facebook');
+
+    setProgress(25);
+    showLoading(true, 'Fetching GHL contacts (Elmien)...');
+
+    // Fetch Elmien contacts
+    const elmienContacts = await fetchGHLContacts('elmien', 100);
+    const elmienFb = elmienContacts.filter(c => c.source === 'Facebook' && c.tags?.some(t => t.includes('elmien-appt')));
+
+    setProgress(40);
+    showLoading(true, `Fetching attribution for ${andriesFb.length + elmienFb.length} contacts...`);
+
+    // Fetch individual contact details for attribution
+    const allFbIds = [
+        ...andriesFb.map(c => ({ id: c.id, person: 'andries', tags: c.tags })),
+        ...elmienFb.map(c => ({ id: c.id, person: 'elmien', tags: c.tags }))
+    ];
+
+    const detailed = [];
+    for (let i = 0; i < allFbIds.length; i++) {
+        try {
+            const detail = await fetchContactDetail(allFbIds[i].id);
+            detail._person = allFbIds[i].person;
+            detailed.push(detail);
+            setProgress(40 + (i / allFbIds.length) * 50);
+        } catch (e) { /* skip rate-limited */ }
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 200)); // rate limit
+    }
+
+    // Also count all contacts (not just Facebook)
+    const andriesAll = andriesContacts;
+    const elmienAll = elmienContacts.filter(c => c.tags?.some(t => t.includes('elmien')));
+
+    ghlContacts = detailed;
+    ghlAndries = { total: andriesAll.length, fb: andriesFb.length, contacts: andriesAll };
+    ghlElmien = { total: elmienAll.length, fb: elmienFb.length, contacts: elmienAll };
+
+    setProgress(95);
+}
+
+// ── Meta API ──────────────────────────────────────
+async function metaFetch(endpoint, params = {}) {
+    params.access_token = META_TOKEN;
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`${META_BASE}${endpoint}?${qs}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data;
+}
+
+async function metaFetchAll(endpoint, params = {}) {
+    let all = [];
+    params.access_token = META_TOKEN; params.limit = params.limit || '500';
+    let url = `${META_BASE}${endpoint}?${new URLSearchParams(params).toString()}`;
+    while (url) {
+        const res = await fetch(url); const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        all = all.concat(data.data || []); url = data.paging?.next || null;
+    }
+    return all;
+}
+
+async function fetchMetaData() {
+    if (!META_TOKEN) return;
+    const today = new Date();
+    const s7 = new Date(today); s7.setDate(s7.getDate() - 6);
+    metaDateRange = { since: fmt(s7), until: fmt(today) };
+    const { since, until } = metaDateRange;
+    const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type,action_values';
+
+    const [campaigns, acctInsights, daily, campInsights] = await Promise.all([
+        metaFetchAll(`/${META_ACCOUNT}/campaigns`, { fields: 'name,status,objective', limit: '500' }),
+        metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
+        metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,cpc,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
+        metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' })
+    ]);
+
+    metaCampaigns = campaigns;
+    metaInsights = campInsights;
+    metaDailyInsights = daily;
+    return acctInsights.data?.[0] || {};
+}
+
+// ── Refresh All ───────────────────────────────────
+async function refreshAll() {
+    hideError();
+    try {
+        await fetchGHLAttributionData();
+        let acctInsight = null;
+        if (META_TOKEN) {
+            showLoading(true, 'Fetching Meta Ads data...');
+            acctInsight = await fetchMetaData();
+        }
+        setProgress(100);
+        showLoading(false);
+        renderOverview();
+        renderAttributionTable();
+        renderContactTable();
+        if (acctInsight) {
+            renderMetaKPIs(acctInsight);
+            renderMetaCharts();
+            renderMetaCampaignTable();
+        }
+    } catch (e) {
+        showLoading(false);
+        showError(e.message);
+    }
+}
+
+// ── Render: Overview ──────────────────────────────
+function renderOverview() {
+    // Funnel KPIs
+    const totalFbContacts = ghlContacts.length;
+    const withAttr = ghlContacts.filter(c => c.attributionSource?.campaign).length;
+    const andriesBooked = ghlContacts.filter(c => c._person === 'andries').length;
+    const elmienBooked = ghlContacts.filter(c => c._person === 'elmien').length;
+    const andriesCompleted = ghlContacts.filter(c => c._person === 'andries' && c.tags?.includes('andries-call-completed')).length;
+    const elmienCompleted = ghlContacts.filter(c => c._person === 'elmien' && c.tags?.includes('elmien-appt-completed')).length;
+
+    document.getElementById('funnelKpis').innerHTML = [
+        { label: 'FB Leads (Andries)', value: ghlAndries.fb, color: 'blue' },
+        { label: 'FB Leads (Elmien)', value: ghlElmien.fb, color: 'purple' },
+        { label: 'Andries Booked', value: andriesBooked, color: 'green' },
+        { label: 'Elmien Booked', value: elmienBooked, color: 'emerald' },
+        { label: 'Andries Completed', value: andriesCompleted, color: 'teal' },
+        { label: 'Elmien Completed', value: elmienCompleted, color: 'cyan' },
+    ].map(k => `
+        <div class="kpi-card rounded-xl p-4 bg-gradient-to-br from-${k.color}-600/20 to-${k.color}-600/5 border border-${k.color}-500/20">
+            <p class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">${k.label}</p>
+            <p class="text-xl font-bold text-white">${k.value}</p>
+        </div>
+    `).join('');
+
+    // Andries funnel
+    renderPersonPipeline('andries');
+    renderPersonPipeline('elmien');
+    renderTopAdsChart();
+}
+
+function renderPersonPipeline(person) {
+    const contacts = ghlContacts.filter(c => c._person === person && c.attributionSource?.campaign);
+    const campaignMap = {};
+
+    contacts.forEach(c => {
+        const camp = c.attributionSource.campaign;
+        if (!campaignMap[camp]) campaignMap[camp] = { booked: 0, completed: 0, noShow: 0, cancelled: 0 };
+        campaignMap[camp].booked++;
+        if (person === 'andries') {
+            if (c.tags?.includes('andries-call-completed')) campaignMap[camp].completed++;
+            if (c.tags?.includes('andries no show')) campaignMap[camp].noShow++;
+        } else {
+            if (c.tags?.includes('elmien-appt-completed')) campaignMap[camp].completed++;
+            if (c.tags?.includes('elmien-no show')) campaignMap[camp].noShow++;
+            if (c.tags?.includes('elmien-cancelled-appt')) campaignMap[camp].cancelled++;
+        }
+    });
+
+    const sorted = Object.entries(campaignMap).sort((a,b) => b[1].booked - a[1].booked).slice(0, 8);
+    const labels = sorted.map(([k]) => k.length > 35 ? k.slice(0,32)+'...' : k);
+    const bookedData = sorted.map(([,v]) => v.booked);
+    const completedData = sorted.map(([,v]) => v.completed);
+
+    const chartId = person === 'andries' ? 'andriesFunnelChart' : 'elmienFunnelChart';
+    if (charts[chartId]) charts[chartId].destroy();
+    charts[chartId] = new Chart(document.getElementById(chartId), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Booked', data: bookedData, backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: 'Completed', data: completedData, backgroundColor: '#10b981', borderRadius: 4 }
+            ]
+        },
+        options: {
+            indexAxis: 'y', responsive: true,
+            plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
+            scales: {
+                x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                y: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { display: false } }
+            }
+        }
+    });
+
+    // Stats
+    const statsEl = document.getElementById(`${person}Stats`);
+    const totalBooked = contacts.length;
+    const totalCompleted = Object.values(campaignMap).reduce((s,v) => s+v.completed, 0);
+    const totalNoShow = Object.values(campaignMap).reduce((s,v) => s+v.noShow, 0);
+    const convRate = totalBooked > 0 ? ((totalCompleted/totalBooked)*100).toFixed(1) : '0';
+    statsEl.innerHTML = `
+        <div class="flex gap-4 text-xs">
+            <span class="text-blue-400">Booked: <strong>${totalBooked}</strong></span>
+            <span class="text-green-400">Completed: <strong>${totalCompleted}</strong></span>
+            <span class="text-red-400">No Show: <strong>${totalNoShow}</strong></span>
+            <span class="text-gray-300">Conv Rate: <strong>${convRate}%</strong></span>
+        </div>
+    `;
+}
+
+function renderTopAdsChart() {
+    const adMap = {};
+    ghlContacts.filter(c => c.attributionSource?.utmContent).forEach(c => {
+        const ad = c.attributionSource.utmContent;
+        if (!adMap[ad]) adMap[ad] = { andries: 0, elmien: 0 };
+        adMap[ad][c._person]++;
+    });
+
+    const sorted = Object.entries(adMap).sort((a,b) => (b[1].andries+b[1].elmien)-(a[1].andries+a[1].elmien)).slice(0,12);
+    const labels = sorted.map(([k]) => k.length > 40 ? k.slice(0,37)+'...' : k);
+
+    if (charts.topAds) charts.topAds.destroy();
+    charts.topAds = new Chart(document.getElementById('topAdsChart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Andries Booked', data: sorted.map(([,v])=>v.andries), backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: 'Elmien Booked', data: sorted.map(([,v])=>v.elmien), backgroundColor: '#a855f7', borderRadius: 4 }
+            ]
+        },
+        options: {
+            indexAxis: 'y', responsive: true,
+            plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } },
+            scales: {
+                x: { stacked: true, ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                y: { stacked: true, ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { display: false } }
+            }
+        }
+    });
+}
+
+// ── Render: Attribution Table ─────────────────────
+function renderAttributionTable() {
+    const filter = document.getElementById('attrPersonFilter').value;
+    const rows = {};
+
+    ghlContacts.filter(c => c.attributionSource?.campaign).forEach(c => {
+        if (filter !== 'all' && c._person !== filter) return;
+        const key = `${c.attributionSource.campaign}|||${c.attributionSource.utmMedium||''}|||${c.attributionSource.utmContent||''}`;
+        if (!rows[key]) rows[key] = { campaign: c.attributionSource.campaign, adset: c.attributionSource.utmMedium||'-', ad: c.attributionSource.utmContent||'-', booked:0, completed:0, noShow:0, cancelled:0, person: c._person };
+        rows[key].booked++;
+        if (c._person === 'andries' && c.tags?.includes('andries-call-completed')) rows[key].completed++;
+        if (c._person === 'andries' && c.tags?.includes('andries no show')) rows[key].noShow++;
+        if (c._person === 'elmien' && c.tags?.includes('elmien-appt-completed')) rows[key].completed++;
+        if (c._person === 'elmien' && c.tags?.includes('elmien-no show')) rows[key].noShow++;
+        if (c._person === 'elmien' && c.tags?.includes('elmien-cancelled-appt')) rows[key].cancelled++;
+    });
+
+    const sorted = Object.values(rows).sort((a,b) => b.booked - a.booked);
+    document.getElementById('attrTableBody').innerHTML = sorted.map(r => `
+        <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
+            <td class="px-5 py-3 text-white max-w-[200px] truncate" title="${r.campaign}">${r.campaign}</td>
+            <td class="px-3 py-3 text-gray-400 max-w-[150px] truncate" title="${r.adset}">${r.adset}</td>
+            <td class="px-3 py-3 text-gray-300 max-w-[150px] truncate" title="${r.ad}">${r.ad}</td>
+            <td class="px-3 py-3 text-center font-mono text-blue-400 font-bold">${r.booked}</td>
+            <td class="px-3 py-3 text-center font-mono text-green-400">${r.completed}</td>
+            <td class="px-3 py-3 text-center font-mono text-red-400">${r.noShow}</td>
+            <td class="px-3 py-3 text-center font-mono text-yellow-400">${r.cancelled}</td>
+            <td class="px-3 py-3 capitalize text-xs"><span class="px-2 py-0.5 rounded-full ${r.person==='andries'?'bg-blue-500/20 text-blue-300':'bg-purple-500/20 text-purple-300'}">${r.person}</span></td>
+        </tr>
+    `).join('');
+}
+
+function renderContactTable() {
+    const userMap = { [ANDRIES_ID]: 'Andries', [ELMIEN_ID]: 'Elmien' };
+    const sorted = ghlContacts.filter(c => c.attributionSource?.campaign).sort((a,b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+
+    document.getElementById('contactTableBody').innerHTML = sorted.map(c => {
+        const attr = c.attributionSource;
+        const tags = c.tags || [];
+        let status = 'booked';
+        if (tags.includes('andries-call-completed') || tags.includes('elmien-appt-completed')) status = 'completed';
+        else if (tags.includes('andries no show') || tags.includes('elmien-no show')) status = 'no show';
+        else if (tags.includes('elmien-cancelled-appt')) status = 'cancelled';
+        else if (tags.includes('leads disqualified - e')) status = 'disqualified';
+
+        const statusColors = { completed: 'text-green-400', 'no show': 'text-red-400', cancelled: 'text-yellow-400', booked: 'text-blue-400', disqualified: 'text-gray-500' };
+        const assigned = userMap[c.assignedTo] || c._person || '?';
+        const date = c.dateAdded ? new Date(c.dateAdded).toLocaleDateString('en-ZA') : '-';
+
+        return `
+        <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
+            <td class="px-5 py-2 text-white capitalize">${c.fullNameLowerCase || '?'}</td>
+            <td class="px-3 py-2 text-gray-400 max-w-[150px] truncate" title="${attr.campaign}">${attr.campaign}</td>
+            <td class="px-3 py-2 text-gray-300 max-w-[120px] truncate" title="${attr.utmContent||''}">${attr.utmContent||'-'}</td>
+            <td class="px-3 py-2 text-gray-400 max-w-[120px] truncate" title="${attr.formName||''}">${attr.formName||'-'}</td>
+            <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs ${c._person==='andries'?'bg-blue-500/20 text-blue-300':'bg-purple-500/20 text-purple-300'}">${assigned}</span></td>
+            <td class="px-3 py-2 ${statusColors[status]} capitalize font-medium">${status}</td>
+            <td class="px-3 py-2 text-gray-500">${date}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Render: Meta Tab ──────────────────────────────
+function renderMetaKPIs(data) {
+    const spend = parseFloat(data.spend||0), impressions = parseInt(data.impressions||0);
+    const reach = parseInt(data.reach||0), clicks = parseInt(data.clicks||0);
+    const ctr = parseFloat(data.ctr||0), cpc = parseFloat(data.cpc||0);
+    const cpm = parseFloat(data.cpm||0), freq = parseFloat(data.frequency||0);
+    const conv = getConversions(data.actions);
+
+    const kpis = [
+        {l:'Spend',v:money(spend),c:'blue'},{l:'Impressions',v:num(impressions),c:'purple'},
+        {l:'Reach',v:num(reach),c:'indigo'},{l:'Clicks',v:num(clicks),c:'cyan'},
+        {l:'CTR',v:pct(ctr),c:'green'},{l:'CPC',v:money(cpc),c:'yellow'},
+        {l:'CPM',v:money(cpm),c:'orange'},{l:'Frequency',v:dec(freq),c:'pink'},
+        {l:'Conversions',v:num(conv),c:'emerald'},
+        {l:'GHL Andries',v:ghlAndries.fb,c:'blue'},{l:'GHL Elmien',v:ghlElmien.fb,c:'purple'},
+    ];
+
+    document.getElementById('metaKpiGrid').innerHTML = kpis.map(k => `
+        <div class="kpi-card rounded-xl p-4 bg-gradient-to-br from-${k.c}-600/20 to-${k.c}-600/5 border border-${k.c}-500/20">
+            <p class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">${k.l}</p>
+            <p class="text-lg font-bold text-white">${k.v}</p>
+        </div>
+    `).join('');
+}
+
+function renderMetaCharts() {
+    const labels = metaDailyInsights.map(d => d.date_start?.slice(5)||'');
+    const spendVals = metaDailyInsights.map(d => parseFloat(d.spend||0));
+    const convVals = metaDailyInsights.map(d => getConversions(d.actions));
+    const ctrVals = metaDailyInsights.map(d => parseFloat(d.ctr||0));
+    const cpcVals = metaDailyInsights.map(d => parseFloat(d.cpc||0));
+
+    const opts = { responsive:true, plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}}, scales:{x:{ticks:{color:'#6b7280',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}} };
+
+    if (charts.spendConv) charts.spendConv.destroy();
+    charts.spendConv = new Chart(document.getElementById('spendConvChart'), {
+        type:'line', data:{ labels, datasets:[
+            {label:'Spend ($)',data:spendVals,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',fill:true,tension:0.3,yAxisID:'y'},
+            {label:'Conversions',data:convVals,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',fill:true,tension:0.3,yAxisID:'y1'}
+        ]},
+        options:{...opts,scales:{...opts.scales,y:{position:'left',ticks:{color:'#3b82f6',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y1:{position:'right',ticks:{color:'#10b981',font:{size:10}},grid:{display:false}}}}
+    });
+
+    if (charts.ctrCpc) charts.ctrCpc.destroy();
+    charts.ctrCpc = new Chart(document.getElementById('ctrCpcChart'), {
+        type:'line', data:{ labels, datasets:[
+            {label:'CTR (%)',data:ctrVals,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.1)',fill:true,tension:0.3,yAxisID:'y'},
+            {label:'CPC ($)',data:cpcVals,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',fill:true,tension:0.3,yAxisID:'y1'}
+        ]},
+        options:{...opts,scales:{...opts.scales,y:{position:'left',ticks:{color:'#22c55e',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y1:{position:'right',ticks:{color:'#f59e0b',font:{size:10}},grid:{display:false}}}}
+    });
+}
+
+function renderMetaCampaignTable() {
+    // Build GHL attribution lookup by campaignId
+    const ghlByMetaCampaign = {};
+    ghlContacts.filter(c => c.attributionSource?.campaignId).forEach(c => {
+        const cid = c.attributionSource.campaignId;
+        ghlByMetaCampaign[cid] = (ghlByMetaCampaign[cid]||0) + 1;
+    });
+    // Also match by campaign name
+    const ghlByName = {};
+    ghlContacts.filter(c => c.attributionSource?.campaign).forEach(c => {
+        const name = c.attributionSource.campaign;
+        ghlByName[name] = (ghlByName[name]||0) + 1;
+    });
+
+    let merged = metaCampaigns.map(c => {
+        const insight = metaInsights.find(i => i.campaign_id === c.id) || {};
+        return {
+            id: c.id, name: c.name, status: c.status,
+            spend: parseFloat(insight.spend||0), impressions: parseInt(insight.impressions||0),
+            clicks: parseInt(insight.clicks||0), ctr: parseFloat(insight.ctr||0),
+            cpc: parseFloat(insight.cpc||0), cpm: parseFloat(insight.cpm||0),
+            conversions: getConversions(insight.actions),
+            ghlBooked: ghlByMetaCampaign[c.id] || ghlByName[c.name] || 0
+        };
+    });
+
+    merged.sort((a,b) => {
+        const av = a[metaSortState.key], bv = b[metaSortState.key];
+        return metaSortState.dir === 'asc' ? av - bv : bv - av;
+    });
+
+    const statusDot = s => {
+        const cls = s==='ACTIVE'?'text-green-400':s==='PAUSED'?'text-yellow-400':'text-gray-500';
+        return `<span class="${cls}">\u25CF</span> <span class="text-gray-400">${(s||'').charAt(0)+(s||'').slice(1).toLowerCase()}</span>`;
+    };
+
+    document.getElementById('metaCampaignBody').innerHTML = merged.filter(c => c.spend > 0 || c.ghlBooked > 0).map(c => `
+        <tr class="border-b border-gray-800/30 hover:bg-white/[0.02]">
+            <td class="px-5 py-3 font-medium text-white max-w-[200px] truncate" title="${c.name}">${c.name}</td>
+            <td class="px-3 py-3 text-xs">${statusDot(c.status)}</td>
+            <td class="px-3 py-3 text-right font-mono">${money(c.spend)}</td>
+            <td class="px-3 py-3 text-right font-mono">${num(c.impressions)}</td>
+            <td class="px-3 py-3 text-right font-mono">${num(c.clicks)}</td>
+            <td class="px-3 py-3 text-right font-mono">${pct(c.ctr)}</td>
+            <td class="px-3 py-3 text-right font-mono">${money(c.cpc)}</td>
+            <td class="px-3 py-3 text-right font-mono">${money(c.cpm)}</td>
+            <td class="px-3 py-3 text-right font-mono">${num(c.conversions)}</td>
+            <td class="px-3 py-3 text-center font-mono font-bold ${c.ghlBooked > 0 ? 'text-green-400' : 'text-gray-600'}">${c.ghlBooked || '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function sortMetaTable(key) {
+    metaSortState = { key, dir: metaSortState.key===key && metaSortState.dir==='desc' ? 'asc' : 'desc' };
+    renderMetaCampaignTable();
+}
+
+function setMetaRange(preset) {
+    const today = new Date();
+    let since, until;
+    switch(preset) {
+        case 'last_7d': const s7=new Date(today); s7.setDate(s7.getDate()-6); since=fmt(s7); until=fmt(today); break;
+        case 'last_30d': const s30=new Date(today); s30.setDate(s30.getDate()-29); since=fmt(s30); until=fmt(today); break;
+        case 'this_month': since=fmt(new Date(today.getFullYear(),today.getMonth(),1)); until=fmt(today); break;
+    }
+    metaDateRange = {since,until};
+    document.querySelectorAll('.range-btn').forEach(b => {
+        b.classList.toggle('bg-blue-600', b.dataset.range===preset);
+        b.classList.toggle('text-white', b.dataset.range===preset);
+    });
+    // Re-fetch meta data
+    if (META_TOKEN) {
+        showLoading(true, 'Refreshing Meta data...');
+        const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type,action_values';
+        Promise.all([
+            metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,cpc,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' })
+        ]).then(([acct, daily, camp]) => {
+            metaInsights = camp; metaDailyInsights = daily;
+            renderMetaKPIs(acct.data?.[0]||{});
+            renderMetaCharts();
+            renderMetaCampaignTable();
+            showLoading(false);
+        }).catch(e => { showLoading(false); showError(e.message); });
+    }
+}
+</script>
+</body>
+</html>
