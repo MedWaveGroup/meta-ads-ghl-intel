@@ -94,6 +94,7 @@
                     <button onclick="switchTab('attribution')" data-tab="attribution" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Ad Attribution</button>
                     <button onclick="switchTab('meta')" data-tab="meta" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Meta Ads</button>
                     <button onclick="switchTab('video')" data-tab="video" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Video Perf.</button>
+                    <button onclick="switchTab('intel')" data-tab="intel" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition text-red-400">Action Intel</button>
                 </div>
                 <!-- Date Filters -->
                 <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
@@ -234,6 +235,37 @@
             </div>
         </div>
 
+        <!-- TAB: Action Intel -->
+        <div id="tab-intel" class="hidden space-y-6 fade-in">
+            <!-- Kill List -->
+            <div class="glass rounded-xl overflow-hidden border border-red-500/20">
+                <div class="px-5 py-4 border-b border-red-500/20 bg-red-500/5 flex items-center gap-3">
+                    <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                    <div>
+                        <h3 class="text-sm font-semibold text-red-400">Top 5 Campaigns to Switch Off or Adjust</h3>
+                        <p class="text-[10px] text-gray-500">Based on last <span id="killDays">7-14</span> days: highest spend with zero or fewest booked appointments. Evaluated at ad set and ad level.</p>
+                    </div>
+                </div>
+                <div id="killListContent" class="p-5">
+                    <p class="text-gray-500 text-xs">Connect Meta Ads to see underperformers.</p>
+                </div>
+            </div>
+
+            <!-- Top 5 Ad Copy -->
+            <div class="glass rounded-xl overflow-hidden border border-green-500/20">
+                <div class="px-5 py-4 border-b border-green-500/20 bg-green-500/5 flex items-center gap-3">
+                    <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div>
+                        <h3 class="text-sm font-semibold text-green-400">Top 5 Performing Ad Copy</h3>
+                        <p class="text-[10px] text-gray-500">Best primary text and headline combinations ranked by booked appointments, then CTR.</p>
+                    </div>
+                </div>
+                <div id="topCopyContent" class="p-5">
+                    <p class="text-gray-500 text-xs">Connect Meta Ads to see top copy.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB: Video Performance -->
         <div id="tab-video" class="hidden space-y-6 fade-in">
             <div id="videoNoMeta" class="hidden glass rounded-xl p-8 text-center">
@@ -297,6 +329,8 @@ let ghlAllLeads = [];
 // Meta data
 let metaCampaigns = [], metaInsights = [], metaDailyInsights = [];
 let metaVideoInsights = []; // ad-level video data
+let metaAdSetInsights = []; // adset-level data for kill list
+let metaAdCreatives = []; // ad-level with creative body/title
 let charts = {};
 
 // ── Date filter helpers ───────────────────────────
@@ -386,7 +420,7 @@ function disconnect() {
 
 // ── Tabs ──────────────────────────────────────────
 function switchTab(tab) {
-    ['overview','attribution','meta','video'].forEach(t => {
+    ['overview','attribution','meta','video','intel'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
     });
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -506,16 +540,20 @@ async function fetchAndRenderMeta() {
     try {
         const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,actions,cost_per_action_type,action_values';
         const videoFields = 'campaign_id,campaign_name,ad_id,ad_name,impressions,video_thruplay_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,actions';
-        const [campaigns, acctInsights, daily, campInsights, adVideoData] = await Promise.all([
+        const adSetFields = 'campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,ctr,actions';
+        const adCreativeFields = 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,actions';
+        const [campaigns, acctInsights, daily, campInsights, adVideoData, adSetData, adCreativeData] = await Promise.all([
             metaFetchAll(`/${META_ACCOUNT}/campaigns`, { fields: 'name,status,objective', limit: '500' }),
             metaFetch(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'account' }),
             metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: 'spend,impressions,clicks,ctr,actions', time_range: JSON.stringify({since,until}), time_increment: '1', level: 'account', limit: '500' }),
             metaFetchAll(`/${META_ACCOUNT}/insights`, { fields, time_range: JSON.stringify({since,until}), level: 'campaign', limit: '500' }),
-            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: videoFields, time_range: JSON.stringify({since,until}), level: 'ad', limit: '500' }).catch(() => [])
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: videoFields, time_range: JSON.stringify({since,until}), level: 'ad', limit: '500' }).catch(() => []),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: adSetFields, time_range: JSON.stringify({since,until}), level: 'adset', limit: '500' }).catch(() => []),
+            metaFetchAll(`/${META_ACCOUNT}/insights`, { fields: adCreativeFields, time_range: JSON.stringify({since,until}), level: 'ad', limit: '500' }).catch(() => [])
         ]);
-        metaCampaigns = campaigns; metaInsights = campInsights; metaDailyInsights = daily; metaVideoInsights = adVideoData;
+        metaCampaigns = campaigns; metaInsights = campInsights; metaDailyInsights = daily; metaVideoInsights = adVideoData; metaAdSetInsights = adSetData; metaAdCreatives = adCreativeData;
         const acct = acctInsights.data?.[0] || {};
-        renderMetaKPIs(acct); renderMetaCharts(); renderMetaCampaignTable(); renderVideoTab();
+        renderMetaKPIs(acct); renderMetaCharts(); renderMetaCampaignTable(); renderVideoTab(); renderIntelTab();
     } catch (e) { showError(e.message); }
     showLoading(false);
 }
@@ -539,6 +577,7 @@ function renderAll() {
     renderVideoTab();
     if (META_TOKEN && metaInsights.length) {
         renderMetaCampaignTable();
+        renderIntelTab();
     }
 }
 
@@ -877,6 +916,165 @@ function renderVideoTab() {
         </tr>`;
     });
     document.getElementById('videoTableBody').innerHTML = html;
+}
+
+// ── Render: Action Intel Tab ──────────────────────
+function renderIntelTab() {
+    const contacts = filteredContacts();
+    // Build GHL booked lookup by ad name (utmContent) and adset (utmMedium)
+    const ghlBookedByAd = {};
+    const ghlBookedByAdSet = {};
+    const ghlBookedByCampaign = {};
+    contacts.filter(c => c.attributionSource?.campaign).forEach(c => {
+        const camp = c.attributionSource.campaign;
+        const adset = c.attributionSource.utmMedium || '';
+        const ad = c.attributionSource.utmContent || '';
+        ghlBookedByCampaign[camp] = (ghlBookedByCampaign[camp]||0) + 1;
+        if (adset) ghlBookedByAdSet[adset] = (ghlBookedByAdSet[adset]||0) + 1;
+        if (ad) ghlBookedByAd[ad] = (ghlBookedByAd[ad]||0) + 1;
+    });
+
+    // ── KILL LIST: Top 5 underperformers ──
+    // Score ad sets: highest spend with fewest/zero booked appointments = worst
+    // Use 7-14 day window regardless of main filter
+    const killDays = dayFilter <= 14 ? dayFilter : 14;
+    document.getElementById('killDays').textContent = killDays;
+
+    if (metaAdSetInsights.length || metaAdCreatives.length) {
+        // Build ad set performance
+        const adSetPerf = {};
+        metaAdSetInsights.forEach(a => {
+            const key = `${a.campaign_name} >> ${a.adset_name}`;
+            if (!adSetPerf[key]) adSetPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0, ads: [] };
+            adSetPerf[key].spend += parseFloat(a.spend||0);
+            adSetPerf[key].impressions += parseInt(a.impressions||0);
+            adSetPerf[key].clicks += parseInt(a.clicks||0);
+            adSetPerf[key].leads += getConversions(a.actions);
+            adSetPerf[key].booked = ghlBookedByAdSet[a.adset_name] || 0;
+        });
+
+        // Build ad-level performance
+        const adPerf = {};
+        metaAdCreatives.forEach(a => {
+            const key = a.ad_name || a.ad_id;
+            if (!adPerf[key]) adPerf[key] = { campaign: a.campaign_name, adset: a.adset_name, ad: a.ad_name, spend: 0, impressions: 0, clicks: 0, leads: 0, booked: 0 };
+            adPerf[key].spend += parseFloat(a.spend||0);
+            adPerf[key].impressions += parseInt(a.impressions||0);
+            adPerf[key].clicks += parseInt(a.clicks||0);
+            adPerf[key].leads += getConversions(a.actions);
+            adPerf[key].booked = ghlBookedByAd[a.ad_name] || 0;
+        });
+
+        // Attach ads to ad sets
+        Object.values(adPerf).forEach(ad => {
+            const key = `${ad.campaign} >> ${ad.adset}`;
+            if (adSetPerf[key]) adSetPerf[key].ads.push(ad);
+        });
+
+        // Score: worst = high spend, zero booked. Sort by: booked ASC, then spend DESC
+        const underperformers = Object.values(adSetPerf)
+            .filter(a => a.spend > 0)
+            .sort((a,b) => {
+                if (a.booked !== b.booked) return a.booked - b.booked; // fewest booked first
+                return b.spend - a.spend; // then highest spend
+            })
+            .slice(0, 5);
+
+        const cpl = (spend, leads) => leads > 0 ? money(spend / leads) : '-';
+
+        document.getElementById('killListContent').innerHTML = `
+            <div class="space-y-3">
+                ${underperformers.map((item, idx) => `
+                    <div class="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
+                        <div class="flex items-start justify-between gap-4 mb-2">
+                            <div class="flex items-center gap-3">
+                                <span class="w-7 h-7 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-sm">${idx+1}</span>
+                                <div>
+                                    <p class="text-white font-medium text-sm">${item.adset}</p>
+                                    <p class="text-gray-500 text-[10px]">${item.campaign}</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 text-right">
+                                <div><p class="text-[10px] text-gray-500">Spend</p><p class="text-sm font-mono text-white">${money(item.spend)}</p></div>
+                                <div><p class="text-[10px] text-gray-500">Leads</p><p class="text-sm font-mono text-white">${num(item.leads)}</p></div>
+                                <div><p class="text-[10px] text-gray-500">CPL</p><p class="text-sm font-mono text-yellow-400">${cpl(item.spend, item.leads)}</p></div>
+                                <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-sm font-mono font-bold ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">${item.booked}</p></div>
+                            </div>
+                        </div>
+                        ${item.ads.length > 0 ? `
+                        <div class="mt-2 pt-2 border-t border-red-500/10">
+                            <p class="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Ads in this ad set:</p>
+                            <div class="space-y-1">
+                                ${item.ads.sort((a,b) => a.booked - b.booked || b.spend - a.spend).map(ad => `
+                                    <div class="flex items-center justify-between text-xs py-1 px-2 rounded ${ad.booked === 0 ? 'bg-red-500/5' : 'bg-dark-700/50'}">
+                                        <span class="text-gray-300 max-w-[250px] truncate" title="${ad.ad}">${ad.ad}</span>
+                                        <div class="flex gap-3 text-right">
+                                            <span class="text-gray-500 font-mono">${money(ad.spend)}</span>
+                                            <span class="text-gray-400 font-mono">${num(ad.leads)} leads</span>
+                                            <span class="font-mono font-bold ${ad.booked === 0 ? 'text-red-400' : 'text-green-400'}">${ad.booked} booked</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>` : ''}
+                        <div class="mt-2 pt-2 border-t border-red-500/10">
+                            <p class="text-[10px] ${item.booked === 0 ? 'text-red-400' : 'text-yellow-400'}">
+                                ${item.booked === 0
+                                    ? '\u26A0 RECOMMEND: Switch off \u2014 spending ' + money(item.spend) + ' with zero booked appointments.'
+                                    : '\u26A0 REVIEW: High spend relative to bookings. Consider adjusting targeting or creative.'}
+                            </p>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+    }
+
+    // ── TOP 5 AD COPY ──
+    // Match ad names to GHL booked counts, rank by bookings then CTR
+    if (metaAdCreatives.length) {
+        const adCopy = {};
+        metaAdCreatives.forEach(a => {
+            const name = a.ad_name || 'Unknown';
+            if (!adCopy[name]) adCopy[name] = { name, campaign: a.campaign_name, spend: 0, impressions: 0, clicks: 0, ctr: 0, booked: 0 };
+            adCopy[name].spend += parseFloat(a.spend||0);
+            adCopy[name].impressions += parseInt(a.impressions||0);
+            adCopy[name].clicks += parseInt(a.clicks||0);
+            adCopy[name].booked = ghlBookedByAd[name] || 0;
+        });
+        // Calculate CTR
+        Object.values(adCopy).forEach(a => { a.ctr = a.impressions > 0 ? (a.clicks / a.impressions * 100) : 0; });
+
+        const topAds = Object.values(adCopy)
+            .filter(a => a.spend > 0)
+            .sort((a,b) => {
+                if (b.booked !== a.booked) return b.booked - a.booked; // most booked first
+                return b.ctr - a.ctr; // then highest CTR
+            })
+            .slice(0, 5);
+
+        document.getElementById('topCopyContent').innerHTML = `
+            <div class="space-y-3">
+                ${topAds.map((ad, idx) => `
+                    <div class="bg-green-500/5 border border-green-500/10 rounded-xl p-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <span class="w-7 h-7 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400 font-bold text-sm">${idx+1}</span>
+                                <div>
+                                    <p class="text-white font-medium text-sm">${ad.name}</p>
+                                    <p class="text-gray-500 text-[10px]">${ad.campaign}</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-4 text-right">
+                                <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-sm font-mono font-bold text-green-400">${ad.booked}</p></div>
+                                <div><p class="text-[10px] text-gray-500">CTR</p><p class="text-sm font-mono text-blue-400">${ad.ctr.toFixed(2)}%</p></div>
+                                <div><p class="text-[10px] text-gray-500">Spend</p><p class="text-sm font-mono text-white">${money(ad.spend)}</p></div>
+                                <div><p class="text-[10px] text-gray-500">Clicks</p><p class="text-sm font-mono text-gray-300">${num(ad.clicks)}</p></div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+    }
 }
 
 function toggleVideoExpand(id, row) {
