@@ -95,6 +95,7 @@
                     <button onclick="switchTab('meta')" data-tab="meta" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Meta Ads</button>
                     <button onclick="switchTab('video')" data-tab="video" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition">Video Perf.</button>
                     <button onclick="switchTab('intel')" data-tab="intel" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition text-red-400">Action Intel</button>
+                    <button onclick="switchTab('deep')" data-tab="deep" class="tab-btn tab-inactive px-3 py-1.5 rounded-md transition text-amber-400">Deep Analysis</button>
                 </div>
                 <!-- Date Filters -->
                 <div class="flex items-center gap-1 bg-dark-800 rounded-lg p-0.5 text-xs">
@@ -266,6 +267,58 @@
             </div>
         </div>
 
+        <!-- TAB: Deep Analysis -->
+        <div id="tab-deep" class="hidden space-y-6 fade-in">
+            <div id="deepNoMeta" class="hidden glass rounded-xl p-8 text-center">
+                <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <p class="text-gray-400 mb-1">Connect Meta Ads for Deep Analysis</p>
+                <p class="text-xs text-gray-600">Full cross-referencing of video watch time, CTR, copy performance, and GHL booking attribution.</p>
+            </div>
+            <div id="deepContent" class="hidden space-y-6">
+                <!-- Executive Summary -->
+                <div class="glass rounded-xl p-6 border border-amber-500/20">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        <h3 class="text-base font-bold text-amber-400">Executive Analysis Summary</h3>
+                    </div>
+                    <div id="execSummary" class="text-sm text-gray-300 leading-relaxed space-y-3"></div>
+                </div>
+
+                <!-- Top 10 Performing Ads Deep Dive -->
+                <div class="glass rounded-xl overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-800/50 bg-gradient-to-r from-amber-500/5 to-transparent">
+                        <h3 class="text-sm font-bold text-white">Top 10 Ads — Full Performance Breakdown</h3>
+                        <p class="text-[10px] text-gray-500 mt-1">Ranked by booked appointments. Hyperlinked to Meta Ads Manager. Cross-referenced with watch time, CTR, and GHL data.</p>
+                    </div>
+                    <div id="deepTop10" class="divide-y divide-gray-800/30"></div>
+                </div>
+
+                <!-- What's Working & Why -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="glass rounded-xl p-6 border border-green-500/20">
+                        <h3 class="text-sm font-bold text-green-400 mb-4">What's Working & Why</h3>
+                        <div id="deepWhatsWorking" class="space-y-3 text-sm text-gray-300"></div>
+                    </div>
+                    <div class="glass rounded-xl p-6 border border-red-500/20">
+                        <h3 class="text-sm font-bold text-red-400 mb-4">Improvement Opportunities</h3>
+                        <div id="deepImprovements" class="space-y-3 text-sm text-gray-300"></div>
+                    </div>
+                </div>
+
+                <!-- CTR vs Booking Correlation -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-sm font-bold text-white mb-4">CTR vs Booking Rate — Is Copy or Creative Driving Clicks?</h3>
+                    <div id="deepCtrAnalysis" class="space-y-3 text-sm text-gray-300"></div>
+                </div>
+
+                <!-- Watch Time Deep Dive -->
+                <div class="glass rounded-xl p-6">
+                    <h3 class="text-sm font-bold text-white mb-4">Video Watch Time Analysis — Where Are Viewers Dropping Off?</h3>
+                    <div id="deepWatchAnalysis" class="space-y-3 text-sm text-gray-300"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB: Video Performance -->
         <div id="tab-video" class="hidden space-y-6 fade-in">
             <div id="videoNoMeta" class="hidden glass rounded-xl p-8 text-center">
@@ -420,7 +473,7 @@ function disconnect() {
 
 // ── Tabs ──────────────────────────────────────────
 function switchTab(tab) {
-    ['overview','attribution','meta','video','intel'].forEach(t => {
+    ['overview','attribution','meta','video','intel','deep'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== tab);
     });
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -584,7 +637,7 @@ async function fetchAndRenderMeta() {
         ]);
         metaCampaigns = campaigns; metaInsights = campInsights; metaDailyInsights = daily; metaVideoInsights = adVideoData; metaAdSetInsights = adSetData; metaAdCreatives = adCreativeData;
         const acct = acctInsights.data?.[0] || {};
-        renderMetaKPIs(acct); renderMetaCharts(); renderMetaCampaignTable(); renderVideoTab(); renderIntelTab();
+        renderMetaKPIs(acct); renderMetaCharts(); renderMetaCampaignTable(); renderVideoTab(); renderIntelTab(); renderDeepAnalysis();
     } catch (e) { showError(e.message); }
     showLoading(false);
 }
@@ -609,6 +662,7 @@ function renderAll() {
     if (META_TOKEN && metaInsights.length) {
         renderMetaCampaignTable();
         renderIntelTab();
+        renderDeepAnalysis();
     }
 }
 
@@ -1145,6 +1199,347 @@ function renderIntelTab() {
                 `).join('')}
             </div>`;
     }
+}
+
+// ── Render: Deep Analysis Tab ─────────────────────
+function renderDeepAnalysis() {
+    if (!META_TOKEN) {
+        document.getElementById('deepNoMeta').classList.remove('hidden');
+        document.getElementById('deepContent').classList.add('hidden');
+        return;
+    }
+    document.getElementById('deepNoMeta').classList.add('hidden');
+    document.getElementById('deepContent').classList.remove('hidden');
+
+    const contacts = filteredContacts();
+    const ghlBookedByAd = {}, ghlBookedByCampaign = {}, ghlBookedByAdSet = {};
+    contacts.filter(c => c.attributionSource?.campaign).forEach(c => {
+        const camp = c.attributionSource.campaign;
+        const ad = c.attributionSource.utmContent || '';
+        const adset = c.attributionSource.utmMedium || '';
+        ghlBookedByCampaign[camp] = (ghlBookedByCampaign[camp]||0) + 1;
+        if (ad) ghlBookedByAd[ad] = (ghlBookedByAd[ad]||0) + 1;
+        if (adset) ghlBookedByAdSet[adset] = (ghlBookedByAdSet[adset]||0) + 1;
+    });
+
+    // Build unified ad data: merge Meta insights + video + GHL bookings
+    const adMap = {};
+    metaAdCreatives.forEach(a => {
+        const key = a.ad_id;
+        if (!adMap[key]) adMap[key] = { adId: a.ad_id, adName: a.ad_name||'Unknown', campaign: a.campaign_name, campaignId: a.campaign_id, adset: a.adset_name, adsetId: a.adset_id, spend: 0, impressions: 0, clicks: 0, ctr: 0, leads: 0, booked: 0, v3s: 0, v25: 0, v50: 0, v75: 0, v100: 0 };
+        adMap[key].spend += parseFloat(a.spend||0);
+        adMap[key].impressions += parseInt(a.impressions||0);
+        adMap[key].clicks += parseInt(a.clicks||0);
+        adMap[key].leads += getConversions(a.actions);
+        adMap[key].booked = ghlBookedByAd[a.ad_name] || 0;
+    });
+    // Merge video data
+    metaVideoInsights.forEach(a => {
+        if (adMap[a.ad_id]) {
+            adMap[a.ad_id].v3s += getVideoMetric(a.actions, 'video_view') || getVideoMetric(a.video_thruplay_watched_actions, 'video_view');
+            adMap[a.ad_id].v25 += getVideoMetric(a.video_p25_watched_actions, 'video_view');
+            adMap[a.ad_id].v50 += getVideoMetric(a.video_p50_watched_actions, 'video_view');
+            adMap[a.ad_id].v75 += getVideoMetric(a.video_p75_watched_actions, 'video_view');
+            adMap[a.ad_id].v100 += getVideoMetric(a.video_p100_watched_actions, 'video_view');
+        }
+    });
+    // Calc CTR
+    Object.values(adMap).forEach(a => { a.ctr = a.impressions > 0 ? (a.clicks/a.impressions*100) : 0; });
+
+    const allAds = Object.values(adMap).filter(a => a.spend > 0);
+    const top10 = [...allAds].sort((a,b) => b.booked !== a.booked ? b.booked - a.booked : b.ctr - a.ctr).slice(0, 10);
+    const avgCTR = allAds.length > 0 ? allAds.reduce((s,a) => s + a.ctr, 0) / allAds.length : 0;
+    const totalSpend = allAds.reduce((s,a) => s + a.spend, 0);
+    const totalBooked = contacts.length;
+    const avgCostPerBooking = totalBooked > 0 ? totalSpend / totalBooked : 0;
+
+    // Helper: Meta Ads Manager links
+    const adLink = (adId) => `https://www.facebook.com/adsmanager/manage/ads?act=${META_ACCOUNT.replace('act_','')}&selected_ad_ids=${adId}`;
+    const adsetLink = (adsetId) => `https://www.facebook.com/adsmanager/manage/adsets?act=${META_ACCOUNT.replace('act_','')}&selected_adset_ids=${adsetId}`;
+    const campLink = (campId) => `https://www.facebook.com/adsmanager/manage/campaigns?act=${META_ACCOUNT.replace('act_','')}&selected_campaign_ids=${campId}`;
+
+    function watchBar(val, impr, color) {
+        if (!impr) return '0%';
+        const p = (val/impr*100);
+        return `<div class="flex items-center gap-1.5"><div class="h-2 rounded-full" style="width:${Math.max(p*1.5,2)}px;background:${color}"></div><span>${p.toFixed(1)}%</span></div>`;
+    }
+
+    function analyzeAd(ad) {
+        const insights = [];
+        const hookRate = ad.impressions > 0 ? (ad.v3s/ad.impressions*100) : 0;
+        const drop25 = ad.v3s > 0 ? (ad.v25/ad.v3s*100) : 0;
+        const drop50 = ad.v25 > 0 ? (ad.v50/ad.v25*100) : 0;
+        const drop75 = ad.v50 > 0 ? (ad.v75/ad.v50*100) : 0;
+        const isVideo = ad.v3s > 0;
+        const ctrVsAvg = avgCTR > 0 ? ((ad.ctr - avgCTR) / avgCTR * 100) : 0;
+
+        // CTR analysis
+        if (ad.ctr > avgCTR * 1.3) {
+            insights.push({ type: 'positive', text: `CTR is ${ad.ctr.toFixed(2)}% — <strong>${ctrVsAvg.toFixed(0)}% above average</strong>. The ad copy/creative combination is highly compelling and driving strong click-through.` });
+        } else if (ad.ctr < avgCTR * 0.7) {
+            insights.push({ type: 'negative', text: `CTR is ${ad.ctr.toFixed(2)}% — <strong>${Math.abs(ctrVsAvg).toFixed(0)}% below average</strong>. Consider testing new headline copy or a different thumbnail/opening frame.` });
+        }
+
+        if (isVideo) {
+            // Hook rate
+            if (hookRate >= 30) {
+                insights.push({ type: 'positive', text: `Hook rate: <strong>${hookRate.toFixed(1)}%</strong> — excellent. The first 3 seconds are capturing attention effectively.` });
+            } else if (hookRate >= 20) {
+                insights.push({ type: 'neutral', text: `Hook rate: <strong>${hookRate.toFixed(1)}%</strong> — average. Test a stronger opening statement or visual pattern interrupt in the first 3 seconds.` });
+            } else {
+                insights.push({ type: 'negative', text: `Hook rate: <strong>${hookRate.toFixed(1)}%</strong> — low. The opening 3 seconds need reworking. Try leading with a bold claim, question, or unexpected visual.` });
+            }
+
+            // Drop-off analysis
+            if (drop25 < 50) {
+                insights.push({ type: 'negative', text: `Major drop-off before 25% — <strong>${(100-drop25).toFixed(0)}% lost</strong>. The early content isn't sustaining interest. Restructure the first quarter to deliver value faster.` });
+            }
+            if (drop50 < 40 && ad.v25 > 0) {
+                insights.push({ type: 'negative', text: `Mid-video drop-off: only <strong>${drop50.toFixed(0)}%</strong> continue past 50%. The middle section may be dragging. Tighten the narrative or add a mid-roll hook.` });
+            }
+            if (ad.v75 > 0 && ad.v50 > 0 && (ad.v75/ad.v50*100) > 70) {
+                insights.push({ type: 'positive', text: `Strong retention from 50% to 75% — <strong>${(ad.v75/ad.v50*100).toFixed(0)}% retained</strong>. The value proposition in the second half is landing well.` });
+            }
+        } else {
+            insights.push({ type: 'neutral', text: 'Image/carousel ad — no video watch data. Performance is driven by copy and visual creative quality.' });
+        }
+
+        // Booking analysis
+        if (ad.booked > 0 && ad.leads > 0) {
+            const bookRate = (ad.booked / ad.leads * 100);
+            if (bookRate > 15) {
+                insights.push({ type: 'positive', text: `Lead-to-booking rate: <strong>${bookRate.toFixed(1)}%</strong> — the funnel from click to booked appointment is strong. This ad is attracting qualified prospects.` });
+            }
+        }
+        if (ad.booked > 0 && ad.spend > 0) {
+            const costPerBooking = ad.spend / ad.booked;
+            insights.push({ type: costPerBooking < avgCostPerBooking ? 'positive' : 'neutral', text: `Cost per booking: <strong>${money(costPerBooking)}</strong> ${costPerBooking < avgCostPerBooking ? '— below average, efficient spend.' : '— monitor efficiency.'}` });
+        }
+
+        return insights;
+    }
+
+    // ── Executive Summary ──
+    const topCampaigns = Object.entries(ghlBookedByCampaign).sort((a,b) => b[1]-a[1]).slice(0,3);
+    const topAdsForSummary = top10.slice(0,3);
+    const videoAds = allAds.filter(a => a.v3s > 0);
+    const avgHook = videoAds.length > 0 ? videoAds.reduce((s,a) => s + (a.impressions > 0 ? a.v3s/a.impressions*100 : 0), 0) / videoAds.length : 0;
+    const adsWithBookings = allAds.filter(a => a.booked > 0).length;
+    const adsWithoutBookings = allAds.filter(a => a.booked === 0 && a.spend > 10).length;
+
+    document.getElementById('execSummary').innerHTML = `
+        <p><strong>Overview:</strong> Across the selected period, <strong>${money(totalSpend)}</strong> was spent across <strong>${allAds.length} ads</strong>, generating <strong>${totalBooked} booked appointments</strong> tracked in GoHighLevel. The average cost per booked appointment is <strong>${money(avgCostPerBooking)}</strong>.</p>
+        <p><strong>Top Campaigns by Bookings:</strong> ${topCampaigns.map(([name,count]) => `"${name}" (${count} bookings)`).join(', ')||'No booking data available.'}.</p>
+        <p><strong>Top Performing Ads:</strong> ${topAdsForSummary.map(a => `"${a.adName}" (${a.booked} bookings, ${a.ctr.toFixed(2)}% CTR)`).join(', ')||'N/A'}.</p>
+        <p><strong>Video Hook Rate:</strong> Average hook rate across ${videoAds.length} video ads is <strong>${avgHook.toFixed(1)}%</strong>. ${avgHook >= 25 ? 'This is solid — your opening frames are working.' : 'This is below the 25%+ benchmark. Opening frames need more pattern interrupts.'}</p>
+        <p><strong>Efficiency:</strong> <strong>${adsWithBookings} ads</strong> are generating bookings. <strong>${adsWithoutBookings} ads</strong> are spending budget with zero bookings — review these for pausing or creative refresh.</p>
+        <p><strong>Average CTR:</strong> <strong>${avgCTR.toFixed(2)}%</strong> across all ads. ${avgCTR >= 1.5 ? 'Above the 1.5% benchmark for lead gen.' : 'Below the 1.5% benchmark — headline and primary text need optimisation.'}</p>
+    `;
+
+    // ── Top 10 Deep Dive ──
+    document.getElementById('deepTop10').innerHTML = top10.map((ad, idx) => {
+        const insights = analyzeAd(ad);
+        const hookRate = ad.impressions > 0 ? (ad.v3s/ad.impressions*100) : 0;
+        const isVideo = ad.v3s > 0;
+        const costPerBooking = ad.booked > 0 ? money(ad.spend / ad.booked) : '-';
+
+        return `
+        <div class="px-6 py-5 hover:bg-white/[0.01]">
+            <div class="flex items-start justify-between gap-4 mb-3">
+                <div class="flex items-start gap-3">
+                    <span class="w-8 h-8 rounded-xl ${idx < 3 ? 'bg-amber-500/20 text-amber-400' : 'bg-dark-600 text-gray-400'} flex items-center justify-center font-bold text-sm flex-shrink-0">${idx+1}</span>
+                    <div>
+                        <p class="text-white font-semibold text-sm">${ad.adName}</p>
+                        <div class="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 flex-wrap">
+                            <a href="${campLink(ad.campaignId)}" target="_blank" class="hover:text-blue-400 underline decoration-dotted">${ad.campaign}</a>
+                            <span>\u203A</span>
+                            <a href="${adsetLink(ad.adsetId)}" target="_blank" class="hover:text-blue-400 underline decoration-dotted">${ad.adset}</a>
+                            <span>\u203A</span>
+                            <a href="${adLink(ad.adId)}" target="_blank" class="hover:text-blue-400 underline decoration-dotted">View Ad</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-3 text-right flex-shrink-0">
+                    <div><p class="text-[10px] text-gray-500">Booked</p><p class="text-base font-bold ${ad.booked > 0 ? 'text-green-400' : 'text-gray-500'}">${ad.booked}</p></div>
+                    <div><p class="text-[10px] text-gray-500">Cost/Book</p><p class="text-sm font-mono text-white">${costPerBooking}</p></div>
+                    <div><p class="text-[10px] text-gray-500">Spend</p><p class="text-sm font-mono text-white">${money(ad.spend)}</p></div>
+                    <div><p class="text-[10px] text-gray-500">CTR</p><p class="text-sm font-mono ${ad.ctr > avgCTR ? 'text-green-400' : 'text-yellow-400'}">${ad.ctr.toFixed(2)}%</p></div>
+                    <div><p class="text-[10px] text-gray-500">Leads</p><p class="text-sm font-mono text-gray-300">${num(ad.leads)}</p></div>
+                </div>
+            </div>
+
+            ${isVideo ? `
+            <div class="bg-dark-800/50 rounded-lg p-3 mb-3">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Video Watch Time Funnel</p>
+                <div class="grid grid-cols-5 gap-2 text-xs">
+                    <div class="text-center"><p class="text-[10px] text-gray-500">Hook (3s)</p><p class="font-mono font-bold ${hookColor(hookRate)}">${hookRate.toFixed(1)}%</p></div>
+                    <div class="text-center"><p class="text-[10px] text-gray-500">25%</p><p class="font-mono ${ad.impressions > 0 ? 'text-gray-300' : 'text-gray-600'}">${ad.impressions > 0 ? (ad.v25/ad.impressions*100).toFixed(1)+'%' : '-'}</p></div>
+                    <div class="text-center"><p class="text-[10px] text-gray-500">50%</p><p class="font-mono ${ad.impressions > 0 ? 'text-gray-300' : 'text-gray-600'}">${ad.impressions > 0 ? (ad.v50/ad.impressions*100).toFixed(1)+'%' : '-'}</p></div>
+                    <div class="text-center"><p class="text-[10px] text-gray-500">75%</p><p class="font-mono ${ad.impressions > 0 ? 'text-gray-300' : 'text-gray-600'}">${ad.impressions > 0 ? (ad.v75/ad.impressions*100).toFixed(1)+'%' : '-'}</p></div>
+                    <div class="text-center"><p class="text-[10px] text-gray-500">100%</p><p class="font-mono ${ad.impressions > 0 ? 'text-gray-300' : 'text-gray-600'}">${ad.impressions > 0 ? (ad.v100/ad.impressions*100).toFixed(1)+'%' : '-'}</p></div>
+                </div>
+                <div class="mt-2 h-3 bg-dark-900 rounded-full overflow-hidden flex">
+                    <div class="h-full bg-blue-500" style="width:${ad.impressions>0?(ad.v3s/ad.impressions*100):0}%"></div>
+                    <div class="h-full bg-green-500" style="width:${ad.impressions>0?((ad.v25-ad.v3s)/ad.impressions*100):0}%"></div>
+                    <div class="h-full bg-yellow-500" style="width:${ad.impressions>0?((ad.v50-ad.v25)/ad.impressions*100):0}%"></div>
+                    <div class="h-full bg-orange-500" style="width:${ad.impressions>0?((ad.v75-ad.v50)/ad.impressions*100):0}%"></div>
+                    <div class="h-full bg-red-500" style="width:${ad.impressions>0?((ad.v100-ad.v75)/ad.impressions*100):0}%"></div>
+                </div>
+            </div>` : `
+            <div class="bg-dark-800/50 rounded-lg p-3 mb-3">
+                <p class="text-[10px] text-gray-500">Image/Carousel Ad — performance driven by copy and visual creative.</p>
+            </div>`}
+
+            <div class="space-y-1.5">
+                ${insights.map(i => {
+                    const icon = i.type === 'positive' ? '\u2705' : i.type === 'negative' ? '\u26A0\uFE0F' : '\u2139\uFE0F';
+                    const color = i.type === 'positive' ? 'text-green-300/90' : i.type === 'negative' ? 'text-red-300/90' : 'text-gray-400';
+                    return `<p class="text-xs ${color} leading-relaxed">${icon} ${i.text}</p>`;
+                }).join('')}
+            </div>
+
+            <div class="mt-3 flex gap-2">
+                <a href="${adLink(ad.adId)}" target="_blank" class="text-[10px] px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 transition">Open Ad in Ads Manager</a>
+                <a href="${adsetLink(ad.adsetId)}" target="_blank" class="text-[10px] px-3 py-1.5 rounded-lg bg-dark-600 text-gray-400 border border-gray-700 hover:bg-dark-700 transition">Duplicate Ad Set</a>
+                <a href="${campLink(ad.campaignId)}" target="_blank" class="text-[10px] px-3 py-1.5 rounded-lg bg-dark-600 text-gray-400 border border-gray-700 hover:bg-dark-700 transition">View Campaign</a>
+            </div>
+        </div>`;
+    }).join('');
+
+    // ── What's Working & Why ──
+    const workingInsights = [];
+    const topBookingAds = allAds.filter(a => a.booked > 0).sort((a,b) => b.booked - a.booked);
+    if (topBookingAds.length > 0) {
+        const topAd = topBookingAds[0];
+        workingInsights.push(`<strong>"${topAd.adName}"</strong> is your #1 booking driver with <strong>${topAd.booked} appointments</strong> at ${topAd.ctr.toFixed(2)}% CTR. ${topAd.v3s > 0 ? `Its hook rate is ${(topAd.impressions>0?(topAd.v3s/topAd.impressions*100):0).toFixed(1)}% — ${(topAd.impressions>0?(topAd.v3s/topAd.impressions*100):0) > 25 ? 'above average, the opening is compelling.' : 'below average but still converting — the value prop is strong enough to overcome a weak hook.'}` : 'This is an image ad performing on copy strength alone.'}`);
+    }
+    // Identify copy patterns in top ads
+    const topAdNames = topBookingAds.slice(0,5).map(a => a.adName.toLowerCase());
+    const hasTestimonial = topAdNames.some(n => n.includes('testimonial'));
+    const hasMashup = topAdNames.some(n => n.includes('mashup'));
+    const hasDifferentiate = topAdNames.some(n => n.includes('differentiate') || n.includes('set') && n.includes('apart'));
+    if (hasTestimonial) workingInsights.push('<strong>Testimonial-style ads</strong> are booking well. Social proof from real users is converting prospects. Scale by creating more testimonial variants with different people.');
+    if (hasMashup) workingInsights.push('<strong>Mashup/compilation videos</strong> are top performers. The variety format keeps attention longer. Create more mashups combining your best-performing clips.');
+    if (hasDifferentiate) workingInsights.push('<strong>Differentiation-angle copy</strong> ("set your spa apart", "differentiate") is resonating. The prospect pain point of standing out from competition is a strong motivator.');
+
+    // High CTR + high bookings pattern
+    const highCTRBookers = allAds.filter(a => a.ctr > avgCTR * 1.2 && a.booked > 0);
+    if (highCTRBookers.length > 0) {
+        workingInsights.push(`<strong>${highCTRBookers.length} ads</strong> have both above-average CTR and bookings. These are your "complete winners" — both the copy and the landing experience are working. These are your best candidates for scaling budget.`);
+    }
+
+    // Retargeting analysis
+    const retargetingAds = topBookingAds.filter(a => a.campaign.toLowerCase().includes('retarget'));
+    if (retargetingAds.length > 0) {
+        const retargetBookings = retargetingAds.reduce((s,a) => s + a.booked, 0);
+        workingInsights.push(`<strong>Retargeting campaigns</strong> are driving <strong>${retargetBookings} bookings</strong>. Warm audiences convert better. Ensure your retargeting pools stay fresh and test new creative angles for repeat viewers.`);
+    }
+
+    document.getElementById('deepWhatsWorking').innerHTML = workingInsights.length > 0
+        ? workingInsights.map(t => `<p class="leading-relaxed">\u2705 ${t}</p>`).join('')
+        : '<p class="text-gray-500">Not enough data to generate insights yet.</p>';
+
+    // ── Improvements ──
+    const improvements = [];
+    const lowHookAds = videoAds.filter(a => a.impressions > 500 && (a.v3s/a.impressions*100) < 20 && a.booked === 0);
+    if (lowHookAds.length > 0) {
+        improvements.push(`<strong>${lowHookAds.length} video ads have hook rates below 20%</strong> with zero bookings. These videos lose viewers in the first 3 seconds. Test new opening frames: start with a bold claim, a question, or an unexpected visual pattern interrupt.`);
+    }
+
+    const highSpendNoBook = allAds.filter(a => a.spend > 50 && a.booked === 0).sort((a,b) => b.spend - a.spend);
+    if (highSpendNoBook.length > 0) {
+        const wastedBudget = highSpendNoBook.reduce((s,a) => s + a.spend, 0);
+        improvements.push(`<strong>${money(wastedBudget)} spent across ${highSpendNoBook.length} ads</strong> with zero booked appointments. Top waster: "${highSpendNoBook[0].adName}" (${money(highSpendNoBook[0].spend)}). Pause these and reallocate budget to top performers.`);
+    }
+
+    const midDropAds = videoAds.filter(a => a.v3s > 0 && a.v25 > 0 && (a.v50/a.v25*100) < 40 && a.booked > 0);
+    if (midDropAds.length > 0) {
+        improvements.push(`<strong>${midDropAds.length} booking ads have >60% mid-video drop-off</strong>. Viewers are hooked but lose interest in the middle. Tighten the narrative at the 25-50% mark — add a second hook, benefit stack, or testimonial clip to re-engage.`);
+    }
+
+    const highCTRNoBook = allAds.filter(a => a.ctr > avgCTR * 1.3 && a.booked === 0 && a.spend > 20);
+    if (highCTRNoBook.length > 0) {
+        improvements.push(`<strong>${highCTRNoBook.length} ads have above-average CTR but zero bookings.</strong> People are clicking but not booking. This suggests the landing page or qualification form is filtering them out — or the ad attracts curiosity clicks from unqualified prospects. Review the audience targeting and lead form questions for these ads.`);
+    }
+
+    if (avgCTR < 1.0) {
+        improvements.push('<strong>Overall CTR is below 1%.</strong> Headline copy needs stronger hooks. Test power words, numbers, and urgency in primary text. A/B test question-based vs statement-based headlines.');
+    }
+
+    document.getElementById('deepImprovements').innerHTML = improvements.length > 0
+        ? improvements.map(t => `<p class="leading-relaxed">\u26A0\uFE0F ${t}</p>`).join('')
+        : '<p class="text-gray-500">No critical improvements identified. Keep monitoring.</p>';
+
+    // ── CTR Analysis ──
+    const ctrInsights = [];
+    const highCTRAds = [...allAds].sort((a,b) => b.ctr - a.ctr).slice(0,5);
+    const highBookAds = [...allAds].filter(a=>a.booked>0).sort((a,b) => b.booked - a.booked).slice(0,5);
+
+    // Check if high CTR = high bookings
+    const ctrBookOverlap = highCTRAds.filter(a => highBookAds.some(b => b.adId === a.adId));
+    if (ctrBookOverlap.length >= 3) {
+        ctrInsights.push(`<strong>Strong CTR-to-Booking correlation:</strong> ${ctrBookOverlap.length} of your top 5 CTR ads are also top booking ads. Your copy is attracting the right audience — both clickable and converting. Double down on these copy angles.`);
+    } else if (ctrBookOverlap.length === 0) {
+        ctrInsights.push(`<strong>CTR and bookings are disconnected:</strong> Your highest-CTR ads are NOT your top booking ads. This means clicks come from curiosity but the leads aren't qualified. Your booking ads likely have more specific, qualifying copy that pre-filters the audience — lean into that specificity.`);
+    }
+
+    // Identify copy patterns driving CTR
+    const videoHighCTR = highCTRAds.filter(a => a.v3s > 0);
+    const imageHighCTR = highCTRAds.filter(a => a.v3s === 0);
+    if (videoHighCTR.length > imageHighCTR.length) {
+        ctrInsights.push(`<strong>Video ads drive higher CTR</strong> than image ads in your account. Video thumbnails and movement in the feed are capturing more attention. Prioritise video creative for new campaigns.`);
+    } else if (imageHighCTR.length > videoHighCTR.length) {
+        ctrInsights.push(`<strong>Image/carousel ads are outperforming video on CTR.</strong> Your static creative and copy combinations are more compelling in the feed. This could mean your video hooks need strengthening, or your image ads have stronger headline copy.`);
+    }
+
+    highCTRAds.forEach(a => {
+        ctrInsights.push(`<a href="${adLink(a.adId)}" target="_blank" class="text-blue-400 hover:underline">"${a.adName}"</a> — <strong>${a.ctr.toFixed(2)}% CTR</strong>, ${a.booked} bookings, ${money(a.spend)} spend. ${a.booked > 0 ? 'Converting clicks to appointments.' : 'High clicks but no bookings — review targeting.'}`);
+    });
+
+    document.getElementById('deepCtrAnalysis').innerHTML = ctrInsights.map(t => `<p class="leading-relaxed">${t}</p>`).join('');
+
+    // ── Watch Time Deep Dive ──
+    const watchInsights = [];
+    if (videoAds.length === 0) {
+        watchInsights.push('No video watch data available for the selected period.');
+    } else {
+        // Overall watch time curve
+        const totalImpr = videoAds.reduce((s,a) => s+a.impressions, 0);
+        const totalV3s = videoAds.reduce((s,a) => s+a.v3s, 0);
+        const totalV25 = videoAds.reduce((s,a) => s+a.v25, 0);
+        const totalV50 = videoAds.reduce((s,a) => s+a.v50, 0);
+        const totalV75 = videoAds.reduce((s,a) => s+a.v75, 0);
+        const totalV100 = videoAds.reduce((s,a) => s+a.v100, 0);
+        const pctOf = (v) => totalImpr > 0 ? (v/totalImpr*100).toFixed(1) : '0';
+
+        watchInsights.push(`<strong>Aggregate Watch Curve:</strong> Hook ${pctOf(totalV3s)}% \u2192 25% mark: ${pctOf(totalV25)}% \u2192 50%: ${pctOf(totalV50)}% \u2192 75%: ${pctOf(totalV75)}% \u2192 Complete: ${pctOf(totalV100)}%.`);
+
+        // Biggest drop-off point
+        const drops = [
+            { from: 'Hook to 25%', loss: totalV3s - totalV25, pct: totalV3s > 0 ? ((totalV3s-totalV25)/totalV3s*100) : 0 },
+            { from: '25% to 50%', loss: totalV25 - totalV50, pct: totalV25 > 0 ? ((totalV25-totalV50)/totalV25*100) : 0 },
+            { from: '50% to 75%', loss: totalV50 - totalV75, pct: totalV50 > 0 ? ((totalV50-totalV75)/totalV50*100) : 0 },
+            { from: '75% to 100%', loss: totalV75 - totalV100, pct: totalV75 > 0 ? ((totalV75-totalV100)/totalV75*100) : 0 },
+        ];
+        const worstDrop = drops.sort((a,b) => b.pct - a.pct)[0];
+        watchInsights.push(`<strong>Biggest drop-off:</strong> ${worstDrop.from} — <strong>${worstDrop.pct.toFixed(0)}% of viewers lost</strong>. This is where content needs the most attention. ${worstDrop.from.includes('Hook') ? 'Strengthen the opening 3-10 seconds with a pattern interrupt or bold claim.' : worstDrop.from.includes('25%') ? 'The first quarter needs to deliver on the hook\'s promise faster. Get to the value proposition sooner.' : worstDrop.from.includes('50%') ? 'The mid-section is dragging. Add a second hook, social proof, or benefit stack at this point.' : 'Viewers are dropping before the CTA. Move your call-to-action earlier or add urgency at the 75% mark.'}`);
+
+        // Best retention ads
+        const bestRetention = videoAds.filter(a => a.impressions > 200).sort((a,b) => {
+            const aRet = a.impressions > 0 ? a.v75/a.impressions : 0;
+            const bRet = b.impressions > 0 ? b.v75/b.impressions : 0;
+            return bRet - aRet;
+        }).slice(0,3);
+        if (bestRetention.length > 0) {
+            watchInsights.push(`<strong>Best Retention Videos:</strong>`);
+            bestRetention.forEach(a => {
+                const ret75 = a.impressions > 0 ? (a.v75/a.impressions*100).toFixed(1) : '0';
+                watchInsights.push(`&nbsp;&nbsp;\u2022 <a href="${adLink(a.adId)}" target="_blank" class="text-blue-400 hover:underline">"${a.adName}"</a> — ${ret75}% watch to 75%, ${a.booked} bookings. ${a.booked > 0 ? 'High retention = high conversion. Study this video\'s structure.' : 'Good retention but no bookings — the audience may not be right.'}`);
+            });
+        }
+    }
+
+    document.getElementById('deepWatchAnalysis').innerHTML = watchInsights.map(t => `<p class="leading-relaxed">${t}</p>`).join('');
 }
 
 function toggleVideoExpand(id, row) {
