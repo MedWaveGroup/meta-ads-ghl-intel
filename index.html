@@ -226,6 +226,7 @@
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('clicks')">Clicks</th>
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('ctr')">CTR</th>
                                 <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('conversions')">Conv.</th>
+                                <th class="text-right px-3 py-3 font-medium sort-btn" onclick="sortMetaTable('frequency')">Freq.</th>
                                 <th class="text-center px-3 py-3 font-medium text-green-400">GHL Booked</th>
                                 <th class="text-center px-3 py-3 font-medium text-emerald-400">Conv %</th>
                             </tr>
@@ -622,7 +623,7 @@ async function fetchAndRenderMeta() {
     if (!since || !until) return;
     showLoading(true, 'Fetching Meta Ads data...');
     try {
-        const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,actions,cost_per_action_type,action_values';
+        const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,frequency,actions,cost_per_action_type,action_values';
         const videoFields = 'campaign_id,campaign_name,ad_id,ad_name,impressions,video_thruplay_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,actions';
         const adSetFields = 'campaign_id,campaign_name,adset_id,adset_name,spend,impressions,clicks,ctr,actions';
         const adCreativeFields = 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,actions';
@@ -889,7 +890,7 @@ function renderMetaCampaignTable() {
         const booked = ghlByMetaCampaign[c.id] || ghlByName[c.name] || 0;
         const conv = getConversions(ins.actions);
         const convRate = conv > 0 ? ((booked/conv)*100).toFixed(1) : '0.0';
-        return { id:c.id, name:c.name, status:c.status, spend:parseFloat(ins.spend||0), impressions:parseInt(ins.impressions||0), clicks:parseInt(ins.clicks||0), ctr:parseFloat(ins.ctr||0), conversions:conv, ghlBooked:booked, convRate:parseFloat(convRate) };
+        return { id:c.id, name:c.name, status:c.status, spend:parseFloat(ins.spend||0), impressions:parseInt(ins.impressions||0), clicks:parseInt(ins.clicks||0), ctr:parseFloat(ins.ctr||0), frequency:parseFloat(ins.frequency||0), conversions:conv, ghlBooked:booked, convRate:parseFloat(convRate) };
     });
     merged.sort((a,b) => metaSortState.dir==='asc' ? a[metaSortState.key]-b[metaSortState.key] : b[metaSortState.key]-a[metaSortState.key]);
     const statusDot = s => { const cls=s==='ACTIVE'?'text-green-400':s==='PAUSED'?'text-yellow-400':'text-gray-500'; return `<span class="${cls}">\u25CF</span> <span class="text-gray-400">${(s||'').charAt(0)+(s||'').slice(1).toLowerCase()}</span>`; };
@@ -903,6 +904,7 @@ function renderMetaCampaignTable() {
             <td class="px-3 py-3 text-right font-mono">${num(c.clicks)}</td>
             <td class="px-3 py-3 text-right font-mono">${pct(c.ctr)}</td>
             <td class="px-3 py-3 text-right font-mono">${num(c.conversions)}</td>
+            <td class="px-3 py-3 text-right font-mono font-bold ${c.frequency >= 4 ? 'text-red-400' : c.frequency >= 2.5 ? 'text-yellow-400' : 'text-gray-300'}" title="${c.frequency >= 4 ? 'FATIGUE: Audience seeing ads 4+ times' : c.frequency >= 2.5 ? 'WARNING: Approaching fatigue' : 'Healthy frequency'}">${dec(c.frequency)}${c.frequency >= 4 ? ' \u26A0' : ''}</td>
             <td class="px-3 py-3 text-center font-mono font-bold ${c.ghlBooked>0?'text-green-400':'text-gray-600'}">${c.ghlBooked||'-'}</td>
             <td class="px-3 py-3 text-center font-mono font-bold ${convColor(c.convRate)}">${c.convRate > 0 ? c.convRate+'%' : '-'}</td>
         </tr>
